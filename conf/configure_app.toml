@@ -1,0 +1,52 @@
+[app]
+# The time interval for executing the learn() function, configurable to throttle the Learner and balance sample production/consumption.
+# 执行learn函数进行训练的时间间隔，可通过该配置让Learner休息以调节样本生产消耗比
+learner_train_sleep_seconds = 0.001
+
+# Replay buffer configurations
+# 样本池容量
+replay_buffer_capacity = 4096
+
+# 当样本池中的样本占总容量的比例达到该值时，启动训练
+preload_ratio = 1
+
+# When new samples are added to the sample pool, the logic for removing old samples: reverb.selectors.Lifo, reverb.selectors.Fifo
+# 当新样本加入样本池时，旧样本的移除逻辑，可选项：reverb.selectors.Lifo, reverb.selectors.Fifo
+# reverb.selectors.Lifo：先进后出(Last In, First Out)
+# reverb.selectors.Fifo：先进先出(First In, First Out)
+reverb_remover = "reverb.selectors.Fifo"
+
+# The sampling logic of the Learner from the sample pool: reverb.selectors.Fifo, reverb.selectors.Uniform
+# Learner从样本池中采样的逻辑，可选项：reverb.selectors.Fifo, reverb.selectors.Uniform
+# reverb.selectors.Uniform：从回放缓冲区中随机均匀地选择样本，每个样本被选中的概率相同。(Samples are selected uniformly at random from the replay buffer, with each sample having an equal probability of being chosen.)
+reverb_sampler = "reverb.selectors.Uniform"
+
+# Training batch size limit for Learner
+# Learner训练时样本批处理大小
+train_batch_size = 2048
+
+# Model dump frequency (steps)
+# 训练间隔多少步输出模型参数文件
+dump_model_freq = 1000
+
+# The Learner pushes model updates, and the frequency at which Actors fetch the model (in minutes).
+# Learner推送模型参数文件至模型池，以及Actor从模型池获取模型参数文件的频次（单位：分钟）
+model_file_sync_per_minutes = 1
+
+# he number of model updates pushed per learner iteration, and the maximum number of updates each actor can fetch at once (cap: 50).
+# Learner每次推送模型参数文件，以及Actor每次获取模型参数文件的数量（上限：50）
+modelpool_max_save_model_count = 1
+
+# Whether to enable the preload model function. If enabled (true), the model specified by preload_model_id will be loaded as the initial model in the preload_model_dir directory; if disabled (false), no preloading will be performed.
+# 是否启用预加载模型功能，若开启(true)，将在preload_model_dir目录下加载由preload_model_id指定的模型作为初始模型；若关闭(false)，则不进行预加载。
+preload_model = false
+
+# The relative path of the preloaded model folder (the variable name {agent_name} refers to the agent_algorithm name directory in the code package). It is only effective when preload_model=true. When the preload model function is enabled, you need to create a new ckpt folder under the agent_algorithm name directory in the code package and place the model file (.pkl) there.
+# 预加载模型文件夹相对路径(变量名{agent_name}指代码包中agent_算法名目录)，仅在preload_model=true时生效；当开启预加载模型功能时，需要在代码包中agent_算法名目录下新建ckpt文件夹，将模型文件（.pkl）放置此即可。
+preload_model_dir = "{agent_name}/ckpt"
+
+# The identification ID of the preloaded model (here refers to the number of model training steps). This ID corresponds to the number of training steps recorded in the model file name. It only takes effect when preload_model=true.
+# Note that it is forbidden to modify the original model file name, otherwise the model preloading process will fail.
+# 预加载模型的标识ID（这里指模型训练步数），该ID对应模型文件名中的训练步数记录。仅在preload_model=true时生效。
+# 注意，禁止修改原始模型文件名，否则将导致模型预加载流程失败。
+preload_model_id = 1000
