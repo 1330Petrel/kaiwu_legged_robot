@@ -20,6 +20,12 @@ max_init_terrain_level = 0
 # 环境地形类型及比例，类型数组，元素对应地形类型[波纹，斜坡，上楼梯，下楼梯，障碍物，平面]
 terrain_proportions = [0.1, 0.2, 0.2, 0.2, 0.2, 0.1]
 
+# Enable terrain height measurement and sampling points
+# 是否启用地形高度测量及采样点
+measure_heights = true
+measured_points_x = [-0.8, -0.7, -0.6, -0.5, -0.4, -0.3, -0.2, -0.1, 0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8]  # 1mx1.6m rectangle (without center line)
+measured_points_y = [-0.5, -0.4, -0.3, -0.2, -0.1, 0.0, 0.1, 0.2, 0.3, 0.4, 0.5]
+
 [domain_rand]
 # Randomize elasticity coefficient (0.0-1.0)
 # 是否启用随机弹性系数，true表示启用，启用后则在0.0~1.0的范围内随机生成弹性系数值
@@ -68,7 +74,7 @@ curriculum = true
 
 # Max linear velocity X (non-flat terrain)(m/s)
 # 非平面地形上，最大线速度 x 方向，单位是米/秒（m/s），当curriculum = true时生效
-max_lin_vel_x_curriculum = 1
+max_lin_vel_x_curriculum = 1.5
 
 # Max linear velocity Y (non-flat terrain)(m/s)
 # 非平面地形上，y方向的最大线速度，单位是米/秒（m/s），当curriculum = true时生效
@@ -80,7 +86,7 @@ max_ang_vel_yaw_curriculum = 0.5
 
 # Max flat terrain linear X velocity (m/s)
 # 平面地形上，x方向的最大线速度命令，单位是米/秒（m/s）
-max_flat_lin_vel_x_curriculum = 1.0
+max_flat_lin_vel_x_curriculum = 1.5
 
 # Max flat terrain linear Y velocity (m/s)
 # 平面地形上，y方向的最大线速度命令，单位是米/秒（m/s）
@@ -93,7 +99,7 @@ max_flat_ang_vel_yaw_curriculum = 3.0
 [commands.ranges]
 # Linear velocity X range (non-flat, m/s)
 # 非平面地形上，x 轴方向的线速度范围，单位为米/秒（m/s）
-lin_vel_x = [-0.4, 0.4]
+lin_vel_x = [-0.5, 0.5]
 
 # Linear velocity Y range (non-flat, m/s)
 # 非平面地形上，y轴方向的线速度范围，单位为米/秒（m/s）
@@ -109,7 +115,7 @@ heading = [-0.785, 0.785]
 
 # Flat terrain linear X velocity range (m/s)
 # 平面地形上，x轴方向（前进/后退）的线速度范围，单位为米/秒（m/s）
-flat_lin_vel_x = [-0.4, 0.4]
+flat_lin_vel_x = [-0.5, 0.5]
 
 # Flat terrain linear Y velocity range (m/s)
 # 平面地形上，y轴方向（左右移动）的线速度范围，单位为米/秒
@@ -159,11 +165,27 @@ height_measurements = 0
 [rewards]
 # Velocity tracking precision (smaller value = higher precision)
 # 线速度/角速度跟踪奖励，值越小要求精度越高
-tracking_sigma = 0.15
+tracking_sigma = 0.25
 
-# Target foot height (meters)
-# 机器人足端高度
-foot_height_target = 0.0
+# Soft joint position limit (meters)
+# 关节位置软限制
+soft_dof_pos_limit = 0.9
+
+# Soft joint velocity limit (meters/second)
+# 关节速度软限制
+soft_dof_vel_limit = 1.0
+
+# Soft joint torque limit (Nm)
+# 关节扭矩软限制
+soft_torque_limit = 1.0
+
+# Target base height (meters)
+# 机器人基座高度
+base_height_target = 0.32
+
+# Clearance height target (meters)
+# 机器人离地高度
+clearance_height_target = -0.22
 
 # Clip negative rewards to zero
 # 是否只允许正奖励，true则负奖励置0
@@ -196,7 +218,7 @@ tracking_ang_vel = 0.5
 
 # Standing penalty
 # 静止惩罚
-stand_still = -0
+stand_still = -0.0
 
 # Foot air time reward
 # 足端腾空时间奖励
@@ -216,7 +238,7 @@ dof_acc = -2.5e-7
 
 # Joint velocity penalty
 # 关节速度惩罚
-dof_vel = -0
+dof_vel = -0.0
 
 # Torque penalty
 # 关节扭矩惩罚
@@ -224,11 +246,11 @@ torques = -0.0001
 
 # Base height penalty
 # 底座高度惩罚
-base_height = -0
+base_height = -10.0
 
 # Orientation penalty
 # 姿态惩罚
-orientation = -2.0
+orientation = -0.2
 
 # XY angular velocity penalty
 # XY轴角速度惩罚
@@ -237,6 +259,14 @@ ang_vel_xy = -0.05
 # Z-axis velocity penalty
 # Z轴线速度惩罚
 lin_vel_z = -0.0
+
+# Joint power penalty
+# 关节功率惩罚
+powers = -2e-5
+
+# Foot clearance penalty
+# 足端摆动惩罚
+foot_clearance = -0.5
 
 # Progress reward
 # 前进奖励
