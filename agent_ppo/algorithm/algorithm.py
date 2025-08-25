@@ -29,7 +29,11 @@ class Algorithm:
         self.device = device
         self.actor_critic = model
         self.optimizer = optimizer
-        self.parameters = [p for param_group in self.optimizer.param_groups for p in param_group["params"]]
+        self.parameters = [
+            p
+            for param_group in self.optimizer.param_groups
+            for p in param_group["params"]
+        ]
         self.train_step = 0
 
         self.desired_kl = 0.01
@@ -55,9 +59,21 @@ class Algorithm:
 
         self.last_report_monitor_time = 0
 
-    def init_storage(self, num_envs, num_transitions_per_env, actor_obs_shape, critic_obs_shape, action_shape):
+    def init_storage(
+        self,
+        num_envs,
+        num_transitions_per_env,
+        actor_obs_shape,
+        critic_obs_shape,
+        action_shape,
+    ):
         self.storage = RolloutStorage(
-            num_envs, num_transitions_per_env, actor_obs_shape, critic_obs_shape, action_shape, device=self.device
+            num_envs,
+            num_transitions_per_env,
+            actor_obs_shape,
+            critic_obs_shape,
+            action_shape,
+            device=self.device,
         )
 
     def test_mode(self):
@@ -75,7 +91,9 @@ class Algorithm:
         aug_obs, aug_critic_obs = obs.detach(), critic_obs.detach()
         self.transition.actions = self.actor_critic.act(aug_obs, history).detach()
         self.transition.values = self.actor_critic.evaluate(aug_critic_obs).detach()
-        self.transition.actions_log_prob = self.actor_critic.get_actions_log_prob(self.transition.actions).detach()
+        self.transition.actions_log_prob = self.actor_critic.get_actions_log_prob(
+            self.transition.actions
+        ).detach()
         self.transition.action_mean = self.actor_critic.action_mean.detach()
         self.transition.action_sigma = self.actor_critic.action_std.detach()
         # need to record obs and critic_obs before env.step()
@@ -97,7 +115,15 @@ class Algorithm:
         # 需要在环境执行step()前记录观测值
         observations = obs
         critic_observations = critic_obs
-        return actions, values, actions_log_prob, action_mean, action_sigma, obs, critic_obs
+        return (
+            actions,
+            values,
+            actions_log_prob,
+            action_mean,
+            action_sigma,
+            obs,
+            critic_obs,
+        )
 
     def process_env_step(self, rewards, dones, infos):
         self.transition.rewards = rewards.clone()
@@ -106,7 +132,9 @@ class Algorithm:
         # 超时时的引导更新
         if "time_outs" in infos:
             self.transition.rewards += self.gamma * torch.squeeze(
-                self.transition.values * infos["time_outs"].unsqueeze(1).to(self.device), 1
+                self.transition.values
+                * infos["time_outs"].unsqueeze(1).to(self.device),
+                1,
             )
 
         not_done_idxs = (dones == False).nonzero().squeeze()
@@ -131,7 +159,9 @@ class Algorithm:
         mean_entropy_loss = 0
 
         if batch_data is None:
-            generator = self.storage.mini_batch_generator(self.num_mini_batches, self.num_learning_epochs)
+            generator = self.storage.mini_batch_generator(
+                self.num_mini_batches, self.num_learning_epochs
+            )
         else:
             generator = batch_data
 
@@ -152,11 +182,20 @@ class Algorithm:
             ) = sample
             # self.logger.info(f"actions:{actions_batch[0]}")
             aug_obs_batch = obs_batch.detach()
-            self.actor_critic.act(aug_obs_batch, history_batch, masks=masks_batch, hidden_states=hid_states_batch[0])
-            actions_log_prob_batch = self.actor_critic.get_actions_log_prob(actions_batch)
+            self.actor_critic.act(
+                aug_obs_batch,
+                history_batch,
+                masks=masks_batch,
+                hidden_states=hid_states_batch[0],
+            )
+            actions_log_prob_batch = self.actor_critic.get_actions_log_prob(
+                actions_batch
+            )
             aug_critic_obs_batch = critic_obs_batch.detach()
             value_batch = self.actor_critic.evaluate(
-                aug_critic_obs_batch, masks=masks_batch, hidden_states=hid_states_batch[1]
+                aug_critic_obs_batch,
+                masks=masks_batch,
+                hidden_states=hid_states_batch[1],
             )
             mu_batch = self.actor_critic.action_mean
             sigma_batch = self.actor_critic.action_std
@@ -166,7 +205,10 @@ class Algorithm:
                 with torch.inference_mode():
                     kl = torch.sum(
                         torch.log(sigma_batch / old_sigma_batch + 1.0e-5)
-                        + (torch.square(old_sigma_batch) + torch.square(old_mu_batch - mu_batch))
+                        + (
+                            torch.square(old_sigma_batch)
+                            + torch.square(old_mu_batch - mu_batch)
+                        )
                         / (2.0 * torch.square(sigma_batch))
                         - 0.5,
                         axis=-1,
@@ -184,7 +226,9 @@ class Algorithm:
 
             # Surrogate loss
             # 替代损失
-            ratio = torch.exp(actions_log_prob_batch - torch.squeeze(old_actions_log_prob_batch))
+            ratio = torch.exp(
+                actions_log_prob_batch - torch.squeeze(old_actions_log_prob_batch)
+            )
             surrogate = -torch.squeeze(advantages_batch) * ratio
             surrogate_clipped = -torch.squeeze(advantages_batch) * torch.clamp(
                 ratio, 1.0 - self.clip_param, 1.0 + self.clip_param
@@ -194,9 +238,9 @@ class Algorithm:
             # Value function loss
             # 值函数损失
             if self.use_clipped_value_loss:
-                value_clipped = target_values_batch + (value_batch - target_values_batch).clamp(
-                    -self.clip_param, self.clip_param
-                )
+                value_clipped = target_values_batch + (
+                    value_batch - target_values_batch
+                ).clamp(-self.clip_param, self.clip_param)
                 value_losses = (value_batch - returns_batch).pow(2)
                 value_losses_clipped = (value_clipped - returns_batch).pow(2)
                 value_loss = torch.max(value_losses, value_losses_clipped).mean()
@@ -205,8 +249,13 @@ class Algorithm:
 
             # Linear vel predict loss
             # 线速度预测损失
-            predicted_linear_vel = self.actor_critic.get_linear_vel(aug_obs_batch, history_batch)
-            target_linear_vel = obs_batch[:, self.actor_critic.privileged_dim : self.actor_critic.privileged_dim + 3]
+            predicted_linear_vel = self.actor_critic.get_linear_vel(
+                aug_obs_batch, history_batch
+            )
+            target_linear_vel = obs_batch[
+                :,
+                self.actor_critic.privileged_dim - 3 : self.actor_critic.privileged_dim,
+            ]
             vel_predict_loss = (predicted_linear_vel - target_linear_vel).pow(2).mean()
 
             loss = (
@@ -224,7 +273,9 @@ class Algorithm:
             self.optimizer.step()
 
             if not self.actor_critic.fixed_std and self.min_std is not None:
-                self.actor_critic.std.data = self.actor_critic.std.data.clamp(min=self.min_std)
+                self.actor_critic.std.data = self.actor_critic.std.data.clamp(
+                    min=self.min_std
+                )
 
             mean_value_loss += value_loss.item()
             mean_surrogate_loss += surrogate_loss.item()
@@ -253,4 +304,9 @@ class Algorithm:
 
             self.last_report_monitor_time = now
 
-        return mean_surrogate_loss, mean_value_loss, mean_vel_predict_loss, mean_entropy_loss
+        return (
+            mean_surrogate_loss,
+            mean_value_loss,
+            mean_vel_predict_loss,
+            mean_entropy_loss,
+        )
