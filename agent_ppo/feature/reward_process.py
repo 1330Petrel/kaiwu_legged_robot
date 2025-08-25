@@ -13,20 +13,40 @@ from legged_gym.utils.math import quat_apply_yaw
 
 num_base_height_points = 0
 base_height_points = None
+action_history_buf = None
 
 
 def _reward_base_height(self):
     """
     覆盖legged_robot中的基座高度惩罚项的错误实现
     """
-    # Penalize base height away from target
     base_height = _get_base_heights(self)
     return torch.square(base_height - self.cfg.rewards.base_height_target)
 
 
 def _reward_powers(self):
-    # Penalize torques
     return torch.sum(torch.abs(self.torques) * torch.abs(self.dof_vel), dim=1)
+
+
+def _reward_action_smoothness(self):
+    global action_history_buf
+    _update_action_history(self)
+
+    reward = torch.sum(
+        torch.square(
+            action_history_buf[:, 0, :]
+            - 2 * action_history_buf[:, 1, :]
+            + action_history_buf[:, 2, :]
+        ),
+        dim=1,
+    )
+
+    # 重置
+    reset_env_ids = self.reset_buf.nonzero(as_tuple=False).flatten()
+    if len(reset_env_ids) > 0:
+        action_history_buf[reset_env_ids, :, :] = 0.0
+
+    return reward
 
 
 def _reward_foot_clearance(self):
@@ -87,10 +107,9 @@ def _reward_progress(self):
 
 
 def _init_base_height_points(self):
-    """Returns points at which the height measurments are sampled (in base frame)
+    """Get points at which the height measurments are sampled (in base frame)
 
-    Returns:
-        [torch.Tensor]: Tensor of shape (num_envs, num_base_height_points, 3)
+    [torch.Tensor]: Tensor of shape (num_envs, num_base_height_points, 3)
     """
     global num_base_height_points, base_height_points
 
@@ -120,16 +139,7 @@ def _init_base_height_points(self):
 
 def _get_base_heights(self, env_ids=None):
     """Samples heights of the terrain at required points around each robot.
-        The points are offset by the base's position and rotated by the base's yaw
-
-    Args:
-        env_ids (List[int], optional): Subset of environments for which to return the heights. Defaults to None.
-
-    Raises:
-        NameError: [description]
-
-    Returns:
-        [type]: [description]
+    The points are offset by the base's position and rotated by the base's yaw
     """
     global num_base_height_points, base_height_points
     if num_base_height_points == 0 or base_height_points is None:
@@ -169,3 +179,21 @@ def _get_base_heights(self, env_ids=None):
     base_height = torch.mean(self.root_states[:, 2].unsqueeze(1) - base_height, dim=1)
 
     return base_height
+
+
+def _update_action_history(self):
+    global action_history_buf
+
+    # 初始化
+    if action_history_buf is None:
+        action_history_buf = torch.zeros(
+            self.num_envs,
+            3,
+            self.num_dofs,
+            device=self.device,
+            dtype=torch.float,
+        )
+
+    # 更新
+    action_history_buf[:, 1:, :] = action_history_buf[:, :-1, :].clone()
+    action_history_buf[:, 0, :] = self.actions

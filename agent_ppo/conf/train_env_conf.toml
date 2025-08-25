@@ -78,7 +78,7 @@ max_lin_vel_x_curriculum = 1.5
 
 # Max linear velocity Y (non-flat terrain)(m/s)
 # 非平面地形上，y方向的最大线速度，单位是米/秒（m/s），当curriculum = true时生效
-max_lin_vel_y_curriculum = 0.2
+max_lin_vel_y_curriculum = 1.0
 
 # Max angular velocity yaw (non-flat terrain)（rad/s）
 # 非平面地形上，最大角速度偏航轴，单位是弧度/秒（rad/s），当curriculum = true时生效
@@ -99,7 +99,7 @@ max_flat_ang_vel_yaw_curriculum = 3.0
 [commands.ranges]
 # Linear velocity X range (non-flat, m/s)
 # 非平面地形上，x 轴方向的线速度范围，单位为米/秒（m/s）
-lin_vel_x = [-0.5, 0.5]
+lin_vel_x = [-0.45, 0.45]
 
 # Linear velocity Y range (non-flat, m/s)
 # 非平面地形上，y轴方向的线速度范围，单位为米/秒（m/s）
@@ -115,7 +115,7 @@ heading = [-0.785, 0.785]
 
 # Flat terrain linear X velocity range (m/s)
 # 平面地形上，x轴方向（前进/后退）的线速度范围，单位为米/秒（m/s）
-flat_lin_vel_x = [-0.5, 0.5]
+flat_lin_vel_x = [-0.45, 0.45]
 
 # Flat terrain linear Y velocity range (m/s)
 # 平面地形上，y轴方向（左右移动）的线速度范围，单位为米/秒
@@ -204,6 +204,38 @@ reward_curriculum_term = []
 reward_curriculum_schedule = [0, 1000, 1, 0]
 
 [rewards.scales]
+# Z-axis velocity penalty
+# Z轴线速度惩罚
+lin_vel_z = -2.0
+
+# XY angular velocity penalty
+# XY轴角速度惩罚
+ang_vel_xy = -0.05
+
+# Orientation penalty
+# 姿态惩罚
+orientation = -0.2
+
+# Torque penalty
+# 关节扭矩惩罚
+torques = -0.0
+
+# Joint velocity penalty
+# 关节速度惩罚
+dof_vel = -0.0
+
+# Joint acceleration penalty
+# 关节加速度惩罚
+dof_acc = -2.5e-7
+
+# Action frequency penalty
+# 动作频率惩罚
+action_rate = -0.01
+
+# Collision penalty
+# 碰撞惩罚
+collision = -0.0
+
 # Termination reward
 # 终止奖励
 termination = -0.0
@@ -216,49 +248,17 @@ tracking_lin_vel = 1.0
 # 角速度跟踪奖励
 tracking_ang_vel = 0.5
 
+# Foot air time reward
+# 足端腾空时间奖励
+feet_air_time = 0.0
+
 # Standing penalty
 # 静止惩罚
 stand_still = -0.0
 
-# Foot air time reward
-# 足端腾空时间奖励
-feet_air_time = 1.0
-
-# Collision penalty
-# 碰撞惩罚
-collision = -0.1
-
-# Action frequency penalty
-# 动作频率惩罚
-action_rate = -0.01
-
-# Joint acceleration penalty
-# 关节加速度惩罚
-dof_acc = -2.5e-7
-
-# Joint velocity penalty
-# 关节速度惩罚
-dof_vel = -0.0
-
-# Torque penalty
-# 关节扭矩惩罚
-torques = -0.0001
-
 # Base height penalty
 # 底座高度惩罚
 base_height = -10.0
-
-# Orientation penalty
-# 姿态惩罚
-orientation = -0.2
-
-# XY angular velocity penalty
-# XY轴角速度惩罚
-ang_vel_xy = -0.05
-
-# Z-axis velocity penalty
-# Z轴线速度惩罚
-lin_vel_z = -0.0
 
 # Joint power penalty
 # 关节功率惩罚
@@ -268,6 +268,28 @@ powers = -2e-5
 # 足端摆动惩罚
 foot_clearance = -0.5
 
+# Action smoothness reward
+# 动作不平滑惩罚
+action_smoothness = -0.01
+
 # Progress reward
 # 前进奖励
-progress = 1.5
+progress = 1.0
+
+# ----------- baseline 中未启用的奖励项 -----------
+
+# Joint position limit penalty
+# 关节位置限制惩罚
+# dof_pos_limits = -0.0
+
+# Joint velocity limit penalty
+# 关节速度限制惩罚
+# dof_vel_limits = -0.0
+
+# Joint torque limit penalty
+# 关节扭矩限制惩罚
+# torque_limits = -0.0
+
+# Foot contact forces penalty
+# 足端接触力惩罚
+# feet_contact_forces = -0.0
