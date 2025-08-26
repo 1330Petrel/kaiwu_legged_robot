@@ -39,10 +39,16 @@ def workflow(envs, agents, logger=None, monitor=None, *args, **kwargs):
     # 配置文件读取和校验
     usr_conf = read_usr_conf("agent_ppo/conf/train_env_conf.toml", logger)
     if usr_conf is None:
-        logger.error(f"usr_conf is None, please check agent_ppo/conf/train_env_conf.toml")
-        raise Exception("usr_conf is None, please check agent_ppo/conf/train_env_conf.toml")
+        logger.error(
+            f"usr_conf is None, please check agent_ppo/conf/train_env_conf.toml"
+        )
+        raise Exception(
+            "usr_conf is None, please check agent_ppo/conf/train_env_conf.toml"
+        )
 
-    game_id = f'{os.getenv("KAIWU_TASK_ID", "1")}_{os.getenv("KAIWU_ROUND_INDEX", "1")}_1'
+    game_id = (
+        f'{os.getenv("KAIWU_TASK_ID", "1")}_{os.getenv("KAIWU_ROUND_INDEX", "1")}_1'
+    )
 
     # legged_robot_locomotion_control environment
     # legged_robot_locomotion_control环境
@@ -53,7 +59,9 @@ def workflow(envs, agents, logger=None, monitor=None, *args, **kwargs):
     rewbuffer = deque(maxlen=100)
     lenbuffer = deque(maxlen=100)
     cur_reward_sum = torch.zeros(agent.num_envs, dtype=torch.float, device=agent.device)
-    cur_episode_length = torch.zeros(agent.num_envs, dtype=torch.float, device=agent.device)
+    cur_episode_length = torch.zeros(
+        agent.num_envs, dtype=torch.float, device=agent.device
+    )
 
     # Initialize Experience Replay Buffer and Store Trajectory Data
     # 初始化经验回放池，存储轨迹数据
@@ -81,14 +89,23 @@ def workflow(envs, agents, logger=None, monitor=None, *args, **kwargs):
     # Trajectory History Initialization
     # 轨迹历史初始化
     trajectory_history = torch.zeros(
-        size=(agent.num_envs, agent.history_length, agent.num_obs - agent.privileged_dim - agent.height_dim - 3),
+        size=(
+            agent.num_envs,
+            agent.history_length,
+            agent.num_obs - agent.privileged_dim - agent.height_dim - 3,
+        ),
         device=agent.device,
     )
     obs_without_command = torch.concat(
-        (obs[:, agent.privileged_dim : agent.privileged_dim + 6], obs[:, agent.privileged_dim + 9 : -agent.height_dim]),
+        (
+            obs[:, agent.privileged_dim : agent.privileged_dim + 6],
+            obs[:, agent.privileged_dim + 9 : -agent.height_dim],
+        ),
         dim=1,
     )
-    trajectory_history = torch.concat((trajectory_history[:, 1:], obs_without_command.unsqueeze(1)), dim=1)
+    trajectory_history = torch.concat(
+        (trajectory_history[:, 1:], obs_without_command.unsqueeze(1)), dim=1
+    )
 
     last_obs, last_critic_obs = torch.clone(obs), torch.clone(critic_obs)
     last_report_monitor_time = 0
@@ -98,7 +115,7 @@ def workflow(envs, agents, logger=None, monitor=None, *args, **kwargs):
     # Main Training Loop
     # 主训练循环
     while True:
-        logger.info(f"Episode {episode} start, usr_conf is {usr_conf}")
+        # logger.info(f"Episode {episode} start, usr_conf is {usr_conf}")
         start_time = time.time()
         # Phase 1: Data Collection
         # 阶段1：数据收集
@@ -127,7 +144,7 @@ def workflow(envs, agents, logger=None, monitor=None, *args, **kwargs):
         agent.learn(batch_data)
         end_time = time.time()
         total_cost_time = round(end_time - start_time, 2)
-        logger.info(f"Episode {episode} end, cost_time is {total_cost_time} s")
+        # logger.info(f"Episode {episode} end, cost_time is {total_cost_time} s")
 
         # Phase 3: Monitoring Metrics Processing
         # 阶段3：监控指标处理
@@ -162,15 +179,33 @@ def workflow(envs, agents, logger=None, monitor=None, *args, **kwargs):
                 "rew_lin_vel_z",
             ]
 
+            diy_keys = [
+                "rew_base_height",
+                "rew_powers",
+                "rew_foot_clearance",
+                "rew_action_smoothness",
+            ]
+
             if len(ep_infos) > 0:
-                terrain_data = {"stability": [], "success": [], "velocity": [], "level": [], "types": []}
+                terrain_data = {
+                    "stability": [],
+                    "success": [],
+                    "velocity": [],
+                    "level": [],
+                    "types": [],
+                }
 
                 generic_metrics = defaultdict(list)
+                diy_metrics = defaultdict(list)
 
                 terrain_level_values = []
 
                 for ep_info in ep_infos:
-                    for key in ["episode_stability", "episode_success", "episode_velocity"]:
+                    for key in [
+                        "episode_stability",
+                        "episode_success",
+                        "episode_velocity",
+                    ]:
                         if key in ep_info:
                             tensor = (
                                 ep_info[key]
@@ -181,7 +216,9 @@ def workflow(envs, agents, logger=None, monitor=None, *args, **kwargs):
 
                     if "terrain_level" in ep_info:
                         terrain_data["level"].append(ep_info["terrain_level"])
-                        terrain_level_values.append(torch.mean(ep_info["terrain_level"].float()))
+                        terrain_level_values.append(
+                            torch.mean(ep_info["terrain_level"].float())
+                        )
 
                     if "terrain_types" in ep_info:
                         terrain_data["types"].append(ep_info["terrain_types"])
@@ -192,13 +229,33 @@ def workflow(envs, agents, logger=None, monitor=None, *args, **kwargs):
                             if not isinstance(metric, torch.Tensor):
                                 metric = torch.tensor(metric, device=agent.device)
                             processed_metric = metric.float().mean()
+                        # elif key == "rew_dof_pos_limits":
+                        #     metric = ep_info["rew_progress"]
+                        #     if not isinstance(metric, torch.Tensor):
+                        #         metric = torch.tensor(metric, device=agent.device)
+                        #     processed_metric = metric.float().mean()
                         else:
-                            processed_metric = torch.tensor(0.0, device=agent.device, dtype=torch.float32)
-
+                            processed_metric = torch.tensor(
+                                0.0, device=agent.device, dtype=torch.float32
+                            )
                         generic_metrics[key].append(processed_metric)
 
+                    for diy_key in diy_keys:
+                        if diy_key in ep_info:
+                            metric = ep_info[diy_key]
+                            if not isinstance(metric, torch.Tensor):
+                                metric = torch.tensor(metric, device=agent.device)
+                            processed_metric = metric.float().mean()
+                        else:
+                            processed_metric = torch.tensor(
+                                0.0, device=agent.device, dtype=torch.float32
+                            )
+                        diy_metrics[diy_key].append(processed_metric)
+
                 if terrain_level_values:
-                    monitor_data["terrain_level"] = torch.mean(torch.stack(terrain_level_values)).item()
+                    monitor_data["terrain_level"] = torch.mean(
+                        torch.stack(terrain_level_values)
+                    ).item()
                 else:
                     monitor_data["terrain_level"] = 0
 
@@ -227,6 +284,14 @@ def workflow(envs, agents, logger=None, monitor=None, *args, **kwargs):
                     else:
                         monitor_data[metric_key] = 0.0
 
+                for i, diy_key in enumerate(diy_keys):
+                    if diy_metrics[diy_key]:
+                        monitor_data[f"diy_{i+2}"] = (
+                            torch.stack(diy_metrics[diy_key]).mean().item()
+                        )
+                    else:
+                        monitor_data[f"diy_{i+2}"] = 0.0
+
                 monitor_data["episode_reward"] = 0.0
                 for key in reward_keys:
                     monitor_data["episode_reward"] += monitor_data.get(key, 0)
@@ -234,14 +299,14 @@ def workflow(envs, agents, logger=None, monitor=None, *args, **kwargs):
             monitor.put_data({os.getpid(): monitor_data})
             last_report_monitor_time = now
 
-        training_metrics = get_training_metrics()
-        if training_metrics:
-            for key, value in training_metrics.items():
-                if key == "env":
-                    for env_key, env_value in value.items():
-                        logger.info(f"training_metrics {key} {env_key} is {env_value}")
-                else:
-                    logger.info(f"training_metrics {key} is {value}")
+        # training_metrics = get_training_metrics()
+        # if training_metrics:
+        #     for key, value in training_metrics.items():
+        #         if key == "env":
+        #             for env_key, env_value in value.items():
+        #                 logger.info(f"training_metrics {key} {env_key} is {env_value}")
+        #         else:
+        #             logger.info(f"training_metrics {key} is {value}")
 
         ep_infos.clear()
 
@@ -337,7 +402,9 @@ def run_episodes_(
                 error_message = f"step failed, result is {extra_info.result_message}"
                 logger.error(error_message)
                 raise Exception(error_message)
-            frame_no, obs, rewards, terminated, truncated, (infos, privileged_obs) = data
+            frame_no, obs, rewards, terminated, truncated, (infos, privileged_obs) = (
+                data
+            )
             obs = torch.clone(privileged_obs)
             if obs is None:
                 logger.info(f"episode {episode}, is None happened!")
@@ -380,7 +447,9 @@ def run_episodes_(
                 ),
                 dim=1,
             )
-            trajectory_history = torch.concat((trajectory_history[:, 1:], obs_without_command.unsqueeze(1)), dim=1)
+            trajectory_history = torch.concat(
+                (trajectory_history[:, 1:], obs_without_command.unsqueeze(1)), dim=1
+            )
 
             if "episode" in infos:
                 ep_infos.append(infos["episode"])
@@ -396,18 +465,26 @@ def run_episodes_(
         # 优势函数计算
         last_critic_obs = torch.clone(critic_obs)
         aug_last_critic_obs = last_critic_obs.detach()
-        last_values = agent.algorithm.actor_critic.evaluate(aug_last_critic_obs).detach()
+        last_values = agent.algorithm.actor_critic.evaluate(
+            aug_last_critic_obs
+        ).detach()
         storage.compute_returns(last_values, agent.algorithm.gamma, agent.algorithm.lam)
         last_obs = torch.clone(obs)
 
-    logger.info(f"non_zero:{torch.nonzero(storage.observations[:,0,:], as_tuple=False)}")
-    logger.info(f"obs:{storage.observations[:, 0, agent.privileged_dim+6:agent.privileged_dim+9]}")
-    logger.info(f"adv:{storage.advantages[:,0]}")
-    logger.info(f"values:{storage.values[:,0]}")
+    # logger.info(
+    #     f"non_zero:{torch.nonzero(storage.observations[:,0,:], as_tuple=False)}"
+    # )
+    # logger.info(
+    #     f"obs:{storage.observations[:, 0, agent.privileged_dim+6:agent.privileged_dim+9]}"
+    # )
+    # logger.info(f"adv:{storage.advantages[:,0]}")
+    # logger.info(f"values:{storage.values[:,0]}")
 
     # Generate training batches
     # 生成训练批次
-    generator = storage.mini_batch_generator(agent.algorithm.num_mini_batches, agent.algorithm.num_learning_epochs)
+    generator = storage.mini_batch_generator(
+        agent.algorithm.num_mini_batches, agent.algorithm.num_learning_epochs
+    )
     batch_data = []
     for mini_batch in generator:
         batch_data.append(mini_batch)

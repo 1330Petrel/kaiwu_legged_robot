@@ -82,7 +82,7 @@ max_lin_vel_y_curriculum = 1.0
 
 # Max angular velocity yaw (non-flat terrain)（rad/s）
 # 非平面地形上，最大角速度偏航轴，单位是弧度/秒（rad/s），当curriculum = true时生效
-max_ang_vel_yaw_curriculum = 0.5
+max_ang_vel_yaw_curriculum = 1.0
 
 # Max flat terrain linear X velocity (m/s)
 # 平面地形上，x方向的最大线速度命令，单位是米/秒（m/s）
@@ -94,7 +94,7 @@ max_flat_lin_vel_y_curriculum = 1.0
 
 # Max flat terrain angular velocity (rad/s)
 # 平面地形上，最大偏航角速度命令，单位是弧度/秒（rad/s）
-max_flat_ang_vel_yaw_curriculum = 3.0
+max_flat_ang_vel_yaw_curriculum = 1.0
 
 [commands.ranges]
 # Linear velocity X range (non-flat, m/s)
@@ -218,7 +218,7 @@ orientation = -0.2
 
 # Torque penalty
 # 关节扭矩惩罚
-torques = -0.0
+torques = -1e-9
 
 # Joint velocity penalty
 # 关节速度惩罚
@@ -280,7 +280,7 @@ progress = 1.0
 
 # Joint position limit penalty
 # 关节位置限制惩罚
-# dof_pos_limits = -0.0
+dof_pos_limits = -0.0
 
 # Joint velocity limit penalty
 # 关节速度限制惩罚

@@ -36,8 +36,12 @@ class Agent(BaseAgent):
 
         usr_conf = read_usr_conf("agent_ppo/conf/train_env_conf.toml", self.logger)
         if usr_conf is None:
-            self.logger.error(f"usr_conf is None, please check agent_ppo/conf/train_env_conf.toml")
-            raise Exception(f"usr_conf is None, please check agent_ppo/conf/train_env_conf.toml")
+            self.logger.error(
+                f"usr_conf is None, please check agent_ppo/conf/train_env_conf.toml"
+            )
+            raise Exception(
+                f"usr_conf is None, please check agent_ppo/conf/train_env_conf.toml"
+            )
 
         valid, message = check_usr_conf(usr_conf, False, self.logger)
         if not valid:
@@ -66,7 +70,8 @@ class Agent(BaseAgent):
             num_actions=self.num_actions,
             height_dim=self.height_dim,
             privileged_dim=self.privileged_dim,
-            history_dim=self.history_length * (self.num_actor_obs - self.privileged_dim - self.height_dim - 3),
+            history_dim=self.history_length
+            * (self.num_actor_obs - self.privileged_dim - self.height_dim - 3),
         ).to(self.device)
 
         self.logger.info(f"Actor MLP: {self.model.actor}")
@@ -85,14 +90,20 @@ class Agent(BaseAgent):
         # 工具
         self.reward_manager = None
         self.monitor = monitor
-        self.algorithm = Algorithm(self.model, self.optimizer, self.device, self.logger, self.monitor)
+        self.algorithm = Algorithm(
+            self.model, self.optimizer, self.device, self.logger, self.monitor
+        )
         self.num_steps_per_env = Config.NUM_STEPS_PER_ENV
         self.save_interval = Config.MODEL_SAVE_INTERVAL
 
         # init storage and model
         # 初始化样本池
         self.algorithm.init_storage(
-            self.num_envs, self.num_steps_per_env, [self.num_actor_obs], [self.num_privileged_obs], [self.num_actions]
+            self.num_envs,
+            self.num_steps_per_env,
+            [self.num_actor_obs],
+            [self.num_privileged_obs],
+            [self.num_actions],
         )
 
         super().__init__(device, logger, monitor)
@@ -118,7 +129,7 @@ class Agent(BaseAgent):
 
         (obs) = list_obs_data
         with torch.no_grad():
-            obs[:, 9] = 1.0
+            obs[:, 9] = 1.0 * 2
             actions = self.algorithm.actor_critic.act_inference(obs)
 
         return [ActData(action=actions)]

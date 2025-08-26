@@ -56,7 +56,9 @@ class TeacherActorCritic(nn.Module):
         activation = get_activation(activation)
 
         size = os.getenv("ENV_SIZE", 8)
-        self.trajectory_history = torch.zeros(size=(int(size), history_length, single_history_dim), device="cuda")
+        self.trajectory_history = torch.zeros(
+            size=(int(size), history_length, single_history_dim), device="cuda"
+        )
 
         self.latent_dim = latent_dim
         self.height_dim = height_dim
@@ -78,7 +80,9 @@ class TeacherActorCritic(nn.Module):
             if l == len(encoder_hidden_dims) - 1:
                 encoder_layers.append(nn.Linear(encoder_hidden_dims[l], latent_dim))
             else:
-                encoder_layers.append(nn.Linear(encoder_hidden_dims[l], encoder_hidden_dims[l + 1]))
+                encoder_layers.append(
+                    nn.Linear(encoder_hidden_dims[l], encoder_hidden_dims[l + 1])
+                )
                 encoder_layers.append(activation)
         self.history_encoder = nn.Sequential(*encoder_layers)
 
@@ -91,7 +95,9 @@ class TeacherActorCritic(nn.Module):
             if l == len(actor_hidden_dims) - 1:
                 actor_layers.append(nn.Linear(actor_hidden_dims[l], num_actions))
             else:
-                actor_layers.append(nn.Linear(actor_hidden_dims[l], actor_hidden_dims[l + 1]))
+                actor_layers.append(
+                    nn.Linear(actor_hidden_dims[l], actor_hidden_dims[l + 1])
+                )
                 actor_layers.append(activation)
         self.actor = nn.Sequential(*actor_layers)
 
@@ -104,7 +110,9 @@ class TeacherActorCritic(nn.Module):
             if l == len(critic_hidden_dims) - 1:
                 critic_layers.append(nn.Linear(critic_hidden_dims[l], 1))
             else:
-                critic_layers.append(nn.Linear(critic_hidden_dims[l], critic_hidden_dims[l + 1]))
+                critic_layers.append(
+                    nn.Linear(critic_hidden_dims[l], critic_hidden_dims[l + 1])
+                )
                 critic_layers.append(nn.LayerNorm([critic_hidden_dims[l + 1]]))
                 critic_layers.append(activation)
         self.critic = nn.Sequential(*critic_layers)
@@ -123,7 +131,9 @@ class TeacherActorCritic(nn.Module):
     def init_weights(sequential, scales):
         [
             torch.nn.init.orthogonal_(module.weight, gain=scales[idx])
-            for idx, module in enumerate(mod for mod in sequential if isinstance(mod, nn.Linear))
+            for idx, module in enumerate(
+                mod for mod in sequential if isinstance(mod, nn.Linear)
+            )
         ]
 
     def reset(self, dones=None):
