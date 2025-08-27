@@ -110,7 +110,7 @@ class RolloutStorage:
         privileged_obs_shape,
         actions_shape,
         history_obs_dim=42,
-        history_length=1,
+        history_length=10,
         device="cpu",
     ):
 

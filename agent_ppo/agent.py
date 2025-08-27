@@ -60,7 +60,8 @@ class Agent(BaseAgent):
         self.num_actions = usr_conf["env"]["num_actions"]
         self.height_dim = usr_conf["env"]["height_dim"]
         self.privileged_dim = usr_conf["env"]["privileged_dim"]
-        self.history_length = usr_conf["env"]["history_length"]
+        # self.history_length = usr_conf["env"]["history_length"]
+        self.history_length = 10
 
         # Create Model and convert the model to a channel-last memory format to achieve better performance.
         # 创建模型, 将模型转换为通道后内存格式，以获得更好的性能。
@@ -72,6 +73,7 @@ class Agent(BaseAgent):
             privileged_dim=self.privileged_dim,
             history_dim=self.history_length
             * (self.num_actor_obs - self.privileged_dim - self.height_dim - 3),
+            history_length=self.history_length,
         ).to(self.device)
 
         self.logger.info(f"Actor MLP: {self.model.actor}")
@@ -106,6 +108,9 @@ class Agent(BaseAgent):
             [self.num_actions],
         )
 
+        # Evaluation History Buffer
+        self.eval_history_buffer = None
+
         super().__init__(device, logger, monitor)
 
     @predict_wrapper
@@ -128,9 +133,36 @@ class Agent(BaseAgent):
     def exploit(self, list_obs_data):
 
         (obs) = list_obs_data
+
+        if self.eval_history_buffer is None:
+            if obs is not None:
+                num_envs = obs.shape[0]
+                self.eval_history_buffer = torch.zeros(
+                    size=(
+                        num_envs,
+                        self.history_length,
+                        self.num_obs - self.privileged_dim - self.height_dim - 3,
+                    ),
+                    device=self.device,
+                )
+
+        obs_without_command = torch.concat(
+            (
+                obs[:, 3:9],
+                obs[:, 12:],
+            ),
+            dim=1,
+        )
+        self.eval_history_buffer = torch.concat(
+            (self.eval_history_buffer[:, 1:], obs_without_command.unsqueeze(1)), dim=1
+        )
+        history_for_model = self.eval_history_buffer.flatten(1)
+
         with torch.no_grad():
             obs[:, 9] = 1.0 * 2
-            actions = self.algorithm.actor_critic.act_inference(obs)
+            actions = self.algorithm.actor_critic.act_deterministic(
+                obs, history_for_model
+            )
 
         return [ActData(action=actions)]
 

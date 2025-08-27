@@ -78,7 +78,7 @@ max_lin_vel_x_curriculum = 1.5
 
 # Max linear velocity Y (non-flat terrain)(m/s)
 # 非平面地形上，y方向的最大线速度，单位是米/秒（m/s），当curriculum = true时生效
-max_lin_vel_y_curriculum = 1.0
+max_lin_vel_y_curriculum = 0.2
 
 # Max angular velocity yaw (non-flat terrain)（rad/s）
 # 非平面地形上，最大角速度偏航轴，单位是弧度/秒（rad/s），当curriculum = true时生效
@@ -90,7 +90,7 @@ max_flat_lin_vel_x_curriculum = 1.5
 
 # Max flat terrain linear Y velocity (m/s)
 # 平面地形上，y方向的最大线速度命令，单位是米/秒（m/s）
-max_flat_lin_vel_y_curriculum = 1.0
+max_flat_lin_vel_y_curriculum = 0.2
 
 # Max flat terrain angular velocity (rad/s)
 # 平面地形上，最大偏航角速度命令，单位是弧度/秒（rad/s）
@@ -99,7 +99,7 @@ max_flat_ang_vel_yaw_curriculum = 1.0
 [commands.ranges]
 # Linear velocity X range (non-flat, m/s)
 # 非平面地形上，x 轴方向的线速度范围，单位为米/秒（m/s）
-lin_vel_x = [-0.45, 0.45]
+lin_vel_x = [-0.4, 0.4]
 
 # Linear velocity Y range (non-flat, m/s)
 # 非平面地形上，y轴方向的线速度范围，单位为米/秒（m/s）
@@ -115,7 +115,7 @@ heading = [-0.785, 0.785]
 
 # Flat terrain linear X velocity range (m/s)
 # 平面地形上，x轴方向（前进/后退）的线速度范围，单位为米/秒（m/s）
-flat_lin_vel_x = [-0.45, 0.45]
+flat_lin_vel_x = [-0.4, 0.4]
 
 # Flat terrain linear Y velocity range (m/s)
 # 平面地形上，y轴方向（左右移动）的线速度范围，单位为米/秒
@@ -266,7 +266,7 @@ powers = -2e-5
 
 # Foot clearance penalty
 # 足端摆动惩罚
-foot_clearance = -0.5
+foot_clearance = -0.05
 
 # Action smoothness reward
 # 动作不平滑惩罚
@@ -274,7 +274,7 @@ action_smoothness = -0.01
 
 # Progress reward
 # 前进奖励
-progress = 1.0
+progress = 0.8
 
 # ----------- baseline 中未启用的奖励项 -----------
 

@@ -195,6 +195,17 @@ class TeacherActorCritic(nn.Module):
         actions_mean = self.actor(concat_observations)
         return actions_mean
 
+    def act_deterministic(self, observations, history):
+        """
+        根据当前观测和【外部传入的】历史数据，为评估时的 exploit 函数设计
+        """
+        # history 参数期望是已经展平的 [batch, history_length * obs_dim] 格式
+        latent_vector = self.history_encoder(history)
+        actions_mean = self.actor(
+            torch.cat((latent_vector, observations[:, 9:12]), dim=-1)
+        )
+        return actions_mean
+
     def evaluate(self, critic_observations, **kwargs):
         value = self.critic(critic_observations)
         return value

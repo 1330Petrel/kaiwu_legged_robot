@@ -229,11 +229,12 @@ def workflow(envs, agents, logger=None, monitor=None, *args, **kwargs):
                             if not isinstance(metric, torch.Tensor):
                                 metric = torch.tensor(metric, device=agent.device)
                             processed_metric = metric.float().mean()
-                        # elif key == "rew_dof_pos_limits":
-                        #     metric = ep_info["rew_progress"]
-                        #     if not isinstance(metric, torch.Tensor):
-                        #         metric = torch.tensor(metric, device=agent.device)
-                        #     processed_metric = metric.float().mean()
+                        elif key == "rew_dof_pos_limits":
+                            if "rew_progress" in ep_info:
+                                metric = ep_info["rew_progress"]
+                                if not isinstance(metric, torch.Tensor):
+                                    metric = torch.tensor(metric, device=agent.device)
+                                processed_metric = metric.float().mean()
                         else:
                             processed_metric = torch.tensor(
                                 0.0, device=agent.device, dtype=torch.float32

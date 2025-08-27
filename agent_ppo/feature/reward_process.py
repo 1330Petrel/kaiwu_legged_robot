@@ -91,7 +91,7 @@ def _reward_progress(self):
     """
     直接奖励机器人在X轴（前进方向）上的速度
     """
-    forward_vel = self.obs_buf[:, 0]
+    forward_vel = self.base_lin_vel[:, 0]
 
     # 只有当指令是要求前进时，才给予这个奖励，避免在其他指令下产生冲突
     # self.commands[:, 0] 是X方向的速度指令

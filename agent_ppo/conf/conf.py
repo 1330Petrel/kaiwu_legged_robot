@@ -29,7 +29,3 @@ class Config:
     # Environment interaction settings
     # 环境交互设置
     NUM_STEPS_PER_ENV = 24
-
-    # check for potential saves every this many iterations
-    # 每隔指定迭代次数检查可能的保存点
-    MODEL_SAVE_INTERVAL = 500
