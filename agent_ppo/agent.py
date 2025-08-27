@@ -134,6 +134,7 @@ class Agent(BaseAgent):
 
         (obs) = list_obs_data
 
+        # 初始化
         if self.eval_history_buffer is None:
             if obs is not None:
                 num_envs = obs.shape[0]
@@ -146,6 +147,15 @@ class Agent(BaseAgent):
                     device=self.device,
                 )
 
+        # Reset
+        action_slice = obs[:, 36:48]
+        command_norm = torch.norm(action_slice, p=1, dim=1)
+        is_reset_signal = command_norm < 1e-6
+        if is_reset_signal.any():
+            reset_indices = is_reset_signal.nonzero(as_tuple=False).squeeze(-1)
+            self.eval_history_buffer[reset_indices] = 0.0
+
+        # Update
         obs_without_command = torch.concat(
             (
                 obs[:, 3:9],

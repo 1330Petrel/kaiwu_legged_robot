@@ -393,8 +393,8 @@ def run_episodes_(
             ) = agent.predict_local(obs, critic_obs, history)
 
             command_actions = torch.clip(actions, -6.0, 6.0).to(agent.device)
-            if i == 0:
-                logger.info(f"clipped_action:{command_actions}")
+            # if i == 0:
+            #     logger.info(f"clipped_action:{command_actions}")
 
             # Environment interaction
             # 环境交互

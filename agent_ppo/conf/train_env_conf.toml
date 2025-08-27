@@ -266,7 +266,7 @@ powers = -2e-5
 
 # Foot clearance penalty
 # 足端摆动惩罚
-foot_clearance = -0.05
+foot_clearance = -0.02
 
 # Action smoothness reward
 # 动作不平滑惩罚
@@ -274,7 +274,7 @@ action_smoothness = -0.01
 
 # Progress reward
 # 前进奖励
-progress = 0.8
+progress = 0.5
 
 # ----------- baseline 中未启用的奖励项 -----------
 
