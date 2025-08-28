@@ -101,21 +101,26 @@ class TeacherActorCritic(nn.Module):
                 actor_layers.append(activation)
         self.actor = nn.Sequential(*actor_layers)
 
-        # Build value network with layer norm
-        # 价值网络构建（含层标准化）
-        critic_layers = []
-        critic_layers.append(nn.Linear(mlp_input_dim_c, critic_hidden_dims[0]))
-        critic_layers.append(activation)
-        for l in range(len(critic_hidden_dims)):
-            if l == len(critic_hidden_dims) - 1:
-                critic_layers.append(nn.Linear(critic_hidden_dims[l], 1))
-            else:
-                critic_layers.append(
-                    nn.Linear(critic_hidden_dims[l], critic_hidden_dims[l + 1])
-                )
-                critic_layers.append(nn.LayerNorm([critic_hidden_dims[l + 1]]))
-                critic_layers.append(activation)
-        self.critic = nn.Sequential(*critic_layers)
+        # # Build value network with layer norm
+        # # 价值网络构建（含层标准化）
+        self.critic = CriticWithHeightConv(
+            mlp_input_dim_c,
+            critic_hidden_dims,
+            activation
+        )
+        # critic_layers = []
+        # critic_layers.append(nn.Linear(mlp_input_dim_c, critic_hidden_dims[0]))
+        # critic_layers.append(activation)
+        # for l in range(len(critic_hidden_dims)):
+        #     if l == len(critic_hidden_dims) - 1:
+        #         critic_layers.append(nn.Linear(critic_hidden_dims[l], 1))
+        #     else:
+        #         critic_layers.append(
+        #             nn.Linear(critic_hidden_dims[l], critic_hidden_dims[l + 1])
+        #         )
+        #         critic_layers.append(nn.LayerNorm([critic_hidden_dims[l + 1]]))
+        #         critic_layers.append(activation)
+        # self.critic = nn.Sequential(*critic_layers)
 
         # Action noise initialization
         # 动作噪声初始化
@@ -208,6 +213,87 @@ class TeacherActorCritic(nn.Module):
 
     def evaluate(self, critic_observations, **kwargs):
         value = self.critic(critic_observations)
+        return value
+
+
+class CriticWithHeightConv(nn.Module):
+    def __init__(self, mlp_input_dim_c: int, critic_hidden_dims, activation: nn.Module):
+        super().__init__()
+        # ---- 高度图配置 ----
+        self.height_h, self.height_w = 17, 11
+        self.height_dim = self.height_h * self.height_w  # 187
+        assert mlp_input_dim_c >= self.height_dim, "mlp_input_dim_c 小于 height_dim!"
+        self.other_dim = mlp_input_dim_c - self.height_dim
+
+        # （可选）把测量范围编码为坐标通道，默认关闭，避免改变现有输入分布
+        self.use_coord_channels = True
+        self.register_buffer(
+            "coord_x",
+            torch.linspace(-0.8, 0.8, steps=self.height_h).view(1, 1, self.height_h, 1).expand(1, 1, self.height_h, self.height_w)
+        )
+        self.register_buffer(
+            "coord_y",
+            torch.linspace(-0.5, 0.5, steps=self.height_w).view(1, 1, 1, self.height_w).expand(1, 1, self.height_h, self.height_w)
+        )
+        in_channels = 3 if self.use_coord_channels else 1
+
+        # ---- 高度图卷积编码器（保持轻量，输出为全局池化后的通道向量）----
+        # 你可以按需调整通道数与层数；AdaptiveAvgPool2d(1) 保证展平后维度固定为 C_out
+        conv_out_channels = 32
+        self.height_encoder = nn.Sequential(
+            nn.Conv2d(in_channels, 16, kernel_size=3, stride=1, padding=1, bias=True),
+            activation,
+            nn.Conv2d(16, conv_out_channels, kernel_size=3, stride=1, padding=1, bias=True),
+            activation,
+            nn.AdaptiveAvgPool2d(1),     # (N, C, 1, 1)
+            nn.Flatten(),                # (N, C)
+            nn.LayerNorm(conv_out_channels),
+        )
+
+        # ---- 价值网络 MLP：输入 = 其余特征 + 卷积特征 ----
+        critic_input_dim = self.other_dim + conv_out_channels
+        critic_layers = []
+        critic_layers.append(nn.Linear(critic_input_dim, critic_hidden_dims[0]))
+        critic_layers.append(activation)
+        for l in range(len(critic_hidden_dims)):
+            if l == len(critic_hidden_dims) - 1:
+                critic_layers.append(nn.Linear(critic_hidden_dims[l], 1))
+            else:
+                critic_layers.append(nn.Linear(critic_hidden_dims[l], critic_hidden_dims[l + 1]))
+                critic_layers.append(nn.LayerNorm([critic_hidden_dims[l + 1]]))
+                critic_layers.append(activation)
+        self.critic = nn.Sequential(*critic_layers)
+
+    def forward(self, critic_input: torch.Tensor) -> torch.Tensor:
+        """
+        critic_input: (N, mlp_input_dim_c)
+        假设高度向量位于输入的“尾部”187维（你说的“倒数 height_dim=187”）。
+        如你的拼接顺序不同，请在这里调整切片。
+        """
+        assert critic_input.dim() == 2 and critic_input.size(-1) >= self.height_dim
+
+        # 其余特征（前部）
+        other = critic_input[:, :-self.height_dim]
+
+        # 高度向量（尾部）→ (N, 1, 17, 11)
+        height_flat = critic_input[:, -self.height_dim:]
+        height_map = height_flat.view(-1, 1, self.height_h, self.height_w).contiguous()
+
+        # （可选）加入坐标通道（CoordConv 风格），用测量范围 [-0.8,0.8] × [-0.4,0.4]
+        if self.use_coord_channels:
+            # 注意：coord_x/coord_y 是注册的 buffer，会随模型搬运设备
+            coord_x = self.coord_x.expand(height_map.size(0), -1, -1, -1)
+            coord_y = self.coord_y.expand(height_map.size(0), -1, -1, -1)
+            height_in = torch.cat([height_map, coord_x, coord_y], dim=1)
+        else:
+            height_in = height_map
+
+        # 卷积特征
+        h_feat = self.height_encoder(height_in)  # (N, conv_out_channels)
+
+        # 拼接并过 MLP critic
+        critic_feat = torch.cat([other, h_feat], dim=-1)
+        value = self.critic(critic_feat)  # (N, 1)
         return value
 
 
