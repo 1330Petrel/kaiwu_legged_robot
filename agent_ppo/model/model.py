@@ -37,7 +37,7 @@ class TeacherActorCritic(nn.Module):
         critic_hidden_dims=[512, 256, 128],
         activation="elu",
         init_noise_std=1.0,
-        fixed_std=False,
+        fixed_std=True,  # False
         latent_dim=32 + 3,
         height_dim=187,
         privileged_dim=3 + 24,
