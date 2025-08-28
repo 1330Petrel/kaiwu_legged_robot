@@ -58,8 +58,8 @@ class Agent(BaseAgent):
         self.num_privileged_obs = usr_conf["env"]["num_privileged_obs"]
         self.num_critic_obs = usr_conf["env"]["num_privileged_obs"]
         self.num_actions = usr_conf["env"]["num_actions"]
-        self.height_dim = usr_conf["env"]["height_dim"]
-        self.privileged_dim = usr_conf["env"]["privileged_dim"]
+        self.height_dim = usr_conf["env"]["height_dim"]  # 187
+        self.privileged_dim = usr_conf["env"]["privileged_dim"]  # 27
         # self.history_length = usr_conf["env"]["history_length"]
         self.history_length = 10
 
