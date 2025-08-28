@@ -103,24 +103,27 @@ class TeacherActorCritic(nn.Module):
 
         # # Build value network with layer norm
         # # 价值网络构建（含层标准化）
-        self.critic = CriticWithHeightConv(
-            mlp_input_dim_c,
-            critic_hidden_dims,
-            activation
-        )
-        # critic_layers = []
-        # critic_layers.append(nn.Linear(mlp_input_dim_c, critic_hidden_dims[0]))
-        # critic_layers.append(activation)
-        # for l in range(len(critic_hidden_dims)):
-        #     if l == len(critic_hidden_dims) - 1:
-        #         critic_layers.append(nn.Linear(critic_hidden_dims[l], 1))
-        #     else:
-        #         critic_layers.append(
-        #             nn.Linear(critic_hidden_dims[l], critic_hidden_dims[l + 1])
-        #         )
-        #         critic_layers.append(nn.LayerNorm([critic_hidden_dims[l + 1]]))
-        #         critic_layers.append(activation)
-        # self.critic = nn.Sequential(*critic_layers)
+        if not Config.CONV2D_HEIGHT_MAP:
+            critic_layers = []
+            critic_layers.append(nn.Linear(mlp_input_dim_c, critic_hidden_dims[0]))
+            critic_layers.append(activation)
+            for l in range(len(critic_hidden_dims)):
+                if l == len(critic_hidden_dims) - 1:
+                    critic_layers.append(nn.Linear(critic_hidden_dims[l], 1))
+                else:
+                    critic_layers.append(
+                        nn.Linear(critic_hidden_dims[l], critic_hidden_dims[l + 1])
+                    )
+                    critic_layers.append(nn.LayerNorm([critic_hidden_dims[l + 1]]))
+                    critic_layers.append(activation)
+            self.critic = nn.Sequential(*critic_layers)
+        else:
+            self.critic = CriticWithHeightConv(
+                mlp_input_dim_c,
+                critic_hidden_dims,
+                activation,
+                use_coord_channels=Config.USE_COORD_CHANNELS,
+            )
 
         # Action noise initialization
         # 动作噪声初始化
@@ -217,7 +220,7 @@ class TeacherActorCritic(nn.Module):
 
 
 class CriticWithHeightConv(nn.Module):
-    def __init__(self, mlp_input_dim_c: int, critic_hidden_dims, activation: nn.Module):
+    def __init__(self, mlp_input_dim_c: int, critic_hidden_dims, activation: nn.Module, use_coord_channels=True):
         super().__init__()
         # ---- 高度图配置 ----
         self.height_h, self.height_w = 17, 11
@@ -226,7 +229,7 @@ class CriticWithHeightConv(nn.Module):
         self.other_dim = mlp_input_dim_c - self.height_dim
 
         # （可选）把测量范围编码为坐标通道，默认关闭，避免改变现有输入分布
-        self.use_coord_channels = True
+        self.use_coord_channels = use_coord_channels
         self.register_buffer(
             "coord_x",
             torch.linspace(-0.8, 0.8, steps=self.height_h).view(1, 1, self.height_h, 1).expand(1, 1, self.height_h, self.height_w)
@@ -267,7 +270,7 @@ class CriticWithHeightConv(nn.Module):
     def forward(self, critic_input: torch.Tensor) -> torch.Tensor:
         """
         critic_input: (N, mlp_input_dim_c)
-        假设高度向量位于输入的“尾部”187维（你说的“倒数 height_dim=187”）。
+        假设高度向量位于输入的“尾部”187维(你说的“倒数 height_dim=187”)
         如你的拼接顺序不同，请在这里调整切片。
         """
         assert critic_input.dim() == 2 and critic_input.size(-1) >= self.height_dim

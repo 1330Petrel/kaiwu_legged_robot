@@ -29,3 +29,10 @@ class Config:
     # Environment interaction settings
     # 环境交互设置
     NUM_STEPS_PER_ENV = 24
+
+    # fix actor distribution std
+    FIXED_STD = True
+    
+    # process height map with conv nn
+    CONV2D_HEIGHT_MAP = False
+    USE_COORD_CHANNELS = True
