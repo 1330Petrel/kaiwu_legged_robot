@@ -18,7 +18,7 @@ max_init_terrain_level = 0
 
 # Terrain type proportions [ripples, slope, stairs_up, stairs_down, obstacles, flat]
 # 环境地形类型及比例，类型数组，元素对应地形类型[波纹，斜坡，上楼梯，下楼梯，障碍物，平面]
-terrain_proportions = [0.1, 0.2, 0.2, 0.2, 0.2, 0.1]
+terrain_proportions = [0.2, 0.1, 0.25, 0.2, 0.2, 0.05]
 
 # Enable terrain height measurement and sampling points
 # 是否启用地形高度测量及采样点
@@ -49,7 +49,7 @@ randomize_link_mass = true
 
 # Apply random pushes to robots
 # 是否启用随机给机器狗施加推动力，true表示启用，启用后则使用push_interval_s参数作为间隔时间
-push_robots = true 
+push_robots = true
 
 # Pushing interval (seconds)
 # 推动机器狗的时间间隔（秒）
@@ -179,6 +179,10 @@ soft_dof_vel_limit = 1.0
 # 关节扭矩软限制
 soft_torque_limit = 1.0
 
+# Maximum contact force (N)
+# 最大接触力
+max_contact_force = 100
+
 # Target base height (meters)
 # 机器人基座高度
 base_height_target = 0.32
@@ -186,6 +190,10 @@ base_height_target = 0.32
 # Clearance height target (meters)
 # 机器人离地高度
 clearance_height_target = -0.22
+
+# Target lean angle (radians)
+# 机器人目标前倾角度
+target_lean = 0.1
 
 # Clip negative rewards to zero
 # 是否只允许正奖励，true则负奖励置0
@@ -218,7 +226,7 @@ orientation = -0.2
 
 # Torque penalty
 # 关节扭矩惩罚
-torques = -1e-9
+torques = -1e-6
 
 # Joint velocity penalty
 # 关节速度惩罚
@@ -234,7 +242,7 @@ action_rate = -0.01
 
 # Collision penalty
 # 碰撞惩罚
-collision = -0.0
+collision = -1.0
 
 # Termination reward
 # 终止奖励
@@ -250,7 +258,11 @@ tracking_ang_vel = 0.5
 
 # Foot air time reward
 # 足端腾空时间奖励
-feet_air_time = 0.0
+feet_air_time = 0.5
+
+# Stumbling penalty
+# 绊倒惩罚
+stumble = -0.5
 
 # Standing penalty
 # 静止惩罚
@@ -266,7 +278,7 @@ powers = -2e-5
 
 # Foot clearance penalty
 # 足端摆动惩罚
-foot_clearance = -0.02
+foot_clearance = -0.0
 
 # Action smoothness reward
 # 动作不平滑惩罚
@@ -274,7 +286,24 @@ action_smoothness = -0.01
 
 # Progress reward
 # 前进奖励
-progress = 0.5
+progress = 1.0
+
+# Symmetric contact reward
+# 对称接触奖励
+symmetric_contact = 0.1
+
+# Forward lean reward
+# 高速时前倾奖励
+forward_lean = 0.1
+
+# Swing foot clearance reward
+# 摆动腿高度奖励
+swing_foot_clearance = 0.0
+swing_trajectory = 0.1
+
+# Survival reward
+# 生存奖励
+survival = 0.0
 
 # ----------- baseline 中未启用的奖励项 -----------
 

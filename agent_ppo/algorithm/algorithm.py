@@ -77,7 +77,7 @@ class Algorithm:
         )
 
     def test_mode(self):
-        self.actor_critic.test()
+        self.actor_critic.eval()
 
     def train_mode(self):
         self.actor_critic.train()

@@ -180,10 +180,10 @@ def workflow(envs, agents, logger=None, monitor=None, *args, **kwargs):
             ]
 
             diy_keys = [
-                "rew_base_height",
-                "rew_powers",
-                "rew_foot_clearance",
-                "rew_action_smoothness",
+                "rew_stumble",
+                "rew_symmetric_contact",
+                "rew_forward_lean",
+                "rew_swing_trajectory",
             ]
 
             if len(ep_infos) > 0:

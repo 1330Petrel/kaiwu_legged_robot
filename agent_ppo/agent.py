@@ -163,9 +163,8 @@ class Agent(BaseAgent):
             ),
             dim=1,
         )
-        self.eval_history_buffer = torch.concat(
-            (self.eval_history_buffer[:, 1:], obs_without_command.unsqueeze(1)), dim=1
-        )
+        self.eval_history_buffer[:, :-1] = self.eval_history_buffer[:, 1:].clone()
+        self.eval_history_buffer[:, -1] = obs_without_command
         history_for_model = self.eval_history_buffer.flatten(1)
 
         with torch.no_grad():
