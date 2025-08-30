@@ -53,47 +53,6 @@ def _reward_action_smoothness(self):
     return reward
 
 
-def _reward_foot_clearance(self):
-    """
-    摆动腿惩罚
-    """
-    # 将足端位置和速度转换到机体坐标系
-    feet_pos = self.rigid_body_states.view(self.num_envs, -1, 13)[
-        :, self.feet_indices, 0:3
-    ]
-    feet_vel = self.rigid_body_states.view(self.num_envs, -1, 13)[
-        :, self.feet_indices, 7:10
-    ]
-    cur_footpos_translated = feet_pos - self.root_states[:, 0:3].unsqueeze(1)
-    cur_footvel_translated = feet_vel - self.root_states[:, 7:10].unsqueeze(1)
-    footpos_in_body_frame = torch.zeros(
-        self.num_envs, len(self.feet_indices), 3, device=self.device
-    )
-    footvel_in_body_frame = torch.zeros(
-        self.num_envs, len(self.feet_indices), 3, device=self.device
-    )
-    for i in range(len(self.feet_indices)):
-        footpos_in_body_frame[:, i, :] = quat_rotate_inverse(
-            self.base_quat, cur_footpos_translated[:, i, :]
-        )
-        footvel_in_body_frame[:, i, :] = quat_rotate_inverse(
-            self.base_quat, cur_footvel_translated[:, i, :]
-        )
-
-    # 计算足端高度误差和侧向速度
-    height_error = torch.square(
-        footpos_in_body_frame[:, :, 2] - self.cfg.rewards.clearance_height_target
-    ).view(self.num_envs, -1)
-    foot_leteral_vel = torch.sqrt(
-        torch.sum(torch.square(footvel_in_body_frame[:, :, :2]), dim=2)
-    ).view(self.num_envs, -1)
-
-    # 只有当足端侧向速度较大时 (即在摆动时)，才计算这个奖励
-    clearance_reward = height_error * foot_leteral_vel
-
-    return torch.sum(clearance_reward, dim=1)
-
-
 def _reward_progress(self):
     forward_vel = self.base_lin_vel[:, 0]
     # 只有当指令是要求前进时，才给予这个奖励，避免在其他指令下产生冲突
@@ -133,57 +92,6 @@ def _reward_symmetric_contact(self):
         last_contacts_1[reset_env_ids] = False
 
     return reward
-
-
-def _reward_forward_lean(self):
-    """
-    奖励机器人在高速奔跑时身体略微前倾的姿态
-    """
-    # 目标是奖励一个轻微的前倾角度，比如5-10度。
-    # 对应 projected_gravity 的 x 分量约为 sin(5-10度) = 0.087 - 0.17
-    # 计算前倾姿态的奖励，使用指数函数使其在目标点附近有高峰值
-    lean_error = torch.square(
-        self.projected_gravity[:, 0] - self.cfg.rewards.target_lean
-    )
-    lean_reward = torch.exp(-lean_error / self.cfg.rewards.tracking_sigma)
-
-    # 只在高速前进指令下应用此奖励
-    is_running_fast = torch.norm(self.commands[:, :2], dim=1) > 0.8  # 高速指令阈值
-
-    return lean_reward * is_running_fast
-
-
-def _reward_swing_foot_clearance(self):
-    """
-    奖励摆动腿的峰值高度，直接鼓励机器人抬高腿以越过障碍
-    """
-    # 识别哪些脚在空中（摆动相）
-    contact = self.contact_forces[:, self.feet_indices, 2] > 1.0
-    swing_feet = ~contact
-
-    # 将足端位置转换到机体坐标系
-    feet_pos = self.rigid_body_states.view(self.num_envs, -1, 13)[
-        :, self.feet_indices, 0:3
-    ]
-    cur_footpos_translated = feet_pos - self.root_states[:, 0:3].unsqueeze(1)
-    footpos_in_body_frame = torch.zeros(
-        self.num_envs, len(self.feet_indices), 3, device=self.device
-    )
-    for i in range(len(self.feet_indices)):
-        footpos_in_body_frame[:, i, :] = quat_rotate_inverse(
-            self.base_quat, cur_footpos_translated[:, i, :]
-        )
-
-    # 奖励目标是让摆动腿达到一个理想的离地高度 clearance_height_target
-    # 使用指数函数形成一个在目标点附近有高奖励的形状
-    height_error = torch.square(
-        footpos_in_body_frame[:, :, 2] - self.cfg.rewards.clearance_height_target
-    ).view(self.num_envs, -1)
-    # 只关心摆动腿，将接触腿的误差清零
-    reward = torch.exp(-height_error / self.cfg.rewards.tracking_sigma) * swing_feet
-
-    # 对所有摆动腿的奖励求和
-    return torch.sum(reward, dim=1)
 
 
 def _reward_swing_trajectory(self):

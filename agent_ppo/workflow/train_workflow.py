@@ -181,8 +181,8 @@ def workflow(envs, agents, logger=None, monitor=None, *args, **kwargs):
 
             diy_keys = [
                 "rew_stumble",
+                "rew_base_height",
                 "rew_symmetric_contact",
-                "rew_forward_lean",
                 "rew_swing_trajectory",
             ]
 

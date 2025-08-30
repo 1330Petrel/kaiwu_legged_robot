@@ -82,7 +82,7 @@ max_lin_vel_y_curriculum = 0.2
 
 # Max angular velocity yaw (non-flat terrain)（rad/s）
 # 非平面地形上，最大角速度偏航轴，单位是弧度/秒（rad/s），当curriculum = true时生效
-max_ang_vel_yaw_curriculum = 1.0
+max_ang_vel_yaw_curriculum = 0.785
 
 # Max flat terrain linear X velocity (m/s)
 # 平面地形上，x方向的最大线速度命令，单位是米/秒（m/s）
@@ -94,7 +94,7 @@ max_flat_lin_vel_y_curriculum = 0.2
 
 # Max flat terrain angular velocity (rad/s)
 # 平面地形上，最大偏航角速度命令，单位是弧度/秒（rad/s）
-max_flat_ang_vel_yaw_curriculum = 1.0
+max_flat_ang_vel_yaw_curriculum = 0.785
 
 [commands.ranges]
 # Linear velocity X range (non-flat, m/s)
@@ -140,7 +140,7 @@ noise_level = 1.0
 
 # Joint position noise std (rad)
 # 关节位置观测的噪声标准差，单位弧度
-dof_pos = 0.03
+dof_pos = 0.01
 
 # Joint velocity noise std
 # 关节速度观测的噪声标准差
@@ -189,11 +189,7 @@ base_height_target = 0.32
 
 # Clearance height target (meters)
 # 机器人离地高度
-clearance_height_target = -0.22
-
-# Target lean angle (radians)
-# 机器人目标前倾角度
-target_lean = 0.1
+clearance_height_target = -0.21
 
 # Clip negative rewards to zero
 # 是否只允许正奖励，true则负奖励置0
@@ -276,10 +272,6 @@ base_height = -10.0
 # 关节功率惩罚
 powers = -2e-5
 
-# Foot clearance penalty
-# 足端摆动惩罚
-foot_clearance = -0.0
-
 # Action smoothness reward
 # 动作不平滑惩罚
 action_smoothness = -0.01
@@ -292,14 +284,9 @@ progress = 1.0
 # 对称接触奖励
 symmetric_contact = 0.1
 
-# Forward lean reward
-# 高速时前倾奖励
-forward_lean = 0.1
-
 # Swing foot clearance reward
 # 摆动腿高度奖励
-swing_foot_clearance = 0.0
-swing_trajectory = 0.1
+swing_trajectory = 0.2
 
 # Survival reward
 # 生存奖励
