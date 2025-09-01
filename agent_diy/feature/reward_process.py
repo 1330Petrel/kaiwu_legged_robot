@@ -6,3 +6,301 @@
 """
 Author: Tencent AI Arena Authors
 """
+
+import torch
+from isaacgym.torch_utils import quat_rotate_inverse
+from legged_gym.utils.math import quat_apply_yaw
+
+num_base_height_points = 0
+base_height_points = None
+action_history_buf = None
+last_contacts_1 = None
+last_contacts_2 = None
+feet_air_time = None
+peak_swing_height = None
+
+
+def _reward_base_height(self):
+    """
+    覆盖legged_robot中的基座高度惩罚项的错误实现
+    """
+    base_height = _get_base_heights(self)
+    return torch.square(base_height - self.cfg.rewards.base_height_target)
+
+
+def _reward_powers(self):
+    return torch.sum(torch.abs(self.torques) * torch.abs(self.dof_vel), dim=1)
+
+
+def _reward_action_smoothness(self):
+    global action_history_buf
+    _update_action_history(self)
+
+    reward = torch.sum(
+        torch.square(
+            action_history_buf[:, 0, :]
+            - 2 * action_history_buf[:, 1, :]
+            + action_history_buf[:, 2, :]
+        ),
+        dim=1,
+    )
+
+    # 重置
+    reset_env_ids = self.reset_buf.nonzero(as_tuple=False).flatten()
+    if len(reset_env_ids) > 0:
+        action_history_buf[reset_env_ids, :, :] = 0.0
+
+    return reward
+
+
+def _reward_foot_clearance(self):
+    """
+    摆动腿惩罚
+    """
+    # 将足端位置和速度转换到机体坐标系
+    feet_pos = self.rigid_body_states.view(self.num_envs, -1, 13)[
+        :, self.feet_indices, 0:3
+    ]
+    feet_vel = self.rigid_body_states.view(self.num_envs, -1, 13)[
+        :, self.feet_indices, 7:10
+    ]
+    cur_footpos_translated = feet_pos - self.root_states[:, 0:3].unsqueeze(1)
+    cur_footvel_translated = feet_vel - self.root_states[:, 7:10].unsqueeze(1)
+    footpos_in_body_frame = quat_rotate_inverse(
+        self.base_quat.unsqueeze(1).expand(-1, len(self.feet_indices), -1),
+        cur_footpos_translated.view(-1, 3),
+    ).view(self.num_envs, len(self.feet_indices), 3)
+    footvel_in_body_frame = quat_rotate_inverse(
+        self.base_quat.unsqueeze(1).expand(-1, len(self.feet_indices), -1),
+        cur_footvel_translated.view(-1, 3),
+    ).view(self.num_envs, len(self.feet_indices), 3)
+
+    # 计算足端高度误差和侧向速度
+    height_error = torch.square(
+        footpos_in_body_frame[:, :, 2] - self.cfg.rewards.clearance_height_target
+    ).view(self.num_envs, -1)
+    foot_leteral_vel = torch.sqrt(
+        torch.sum(torch.square(footvel_in_body_frame[:, :, :2]), dim=2)
+    ).view(self.num_envs, -1)
+
+    # 只有当足端侧向速度较大时 (即在摆动时)，才计算这个奖励
+    clearance_reward = height_error * foot_leteral_vel
+
+    return torch.sum(clearance_reward, dim=1)
+
+
+def _reward_progress(self):
+    forward_vel = self.base_lin_vel[:, 0]
+    # 只有当指令是要求前进时，才给予这个奖励，避免在其他指令下产生冲突
+    progress_reward = forward_vel * (self.commands[:, 0] > 0)
+    # 将负的前进速度裁剪掉，不希望因为后退而惩罚它
+    return torch.clip(progress_reward, min=0.0)
+
+
+def _reward_symmetric_contact(self):
+    """
+    奖励对角足同步接触地面，鼓励稳定且有力的Trot步态
+    """
+    global last_contacts_1
+    if last_contacts_1 is None:
+        last_contacts_1 = torch.zeros(
+            self.num_envs,
+            len(self.feet_indices),
+            dtype=torch.bool,
+            device=self.device,
+            requires_grad=False,
+        )
+
+    # 获取足端接触状态
+    contact = self.contact_forces[:, self.feet_indices, 2] > 1.0
+    contact_filt = torch.logical_or(contact, last_contacts_1)
+    last_contacts_1 = contact.clone()
+    # 计算每对对角腿的同步性：
+    sync_diag1 = torch.where(contact_filt[:, 0] == contact_filt[:, 3], 1.0, 0.0)
+    sync_diag2 = torch.where(contact_filt[:, 1] == contact_filt[:, 2], 1.0, 0.0)
+    # 只在机器人运动时关心这个
+    is_moving = torch.norm(self.commands[:, :2], dim=1) > 0.1
+    reward = (sync_diag1 + sync_diag2) * is_moving
+
+    # 重置
+    reset_env_ids = self.reset_buf.nonzero(as_tuple=False).flatten()
+    if len(reset_env_ids) > 0:
+        last_contacts_1[reset_env_ids] = False
+
+    return reward
+
+
+def _reward_swing_trajectory(self):
+    """
+    在足端落地的一瞬间，根据其在空中达到的峰值高度给予一次性奖励
+    """
+    global last_contacts_2, feet_air_time, peak_swing_height
+    if last_contacts_2 is None:
+        last_contacts_2 = torch.zeros(
+            self.num_envs,
+            len(self.feet_indices),
+            dtype=torch.bool,
+            device=self.device,
+            requires_grad=False,
+        )
+        feet_air_time = torch.zeros(
+            self.num_envs,
+            self.feet_indices.shape[0],
+            dtype=torch.float,
+            device=self.device,
+            requires_grad=False,
+        )
+        peak_swing_height = torch.zeros(
+            self.num_envs,
+            self.feet_indices.shape[0],
+            dtype=torch.float,
+            device=self.device,
+            requires_grad=False,
+        )
+
+    # 检测接触状态
+    contact = self.contact_forces[:, self.feet_indices, 2] > 1.0
+    contact_filt = torch.logical_or(contact, last_contacts_2)
+    last_contacts_2 = contact.clone()
+
+    # 检测刚刚落地
+    first_contact = (feet_air_time > 0.0) * contact_filt
+
+    # 将足端位置转换到机体坐标系
+    feet_pos = self.rigid_body_states.view(self.num_envs, -1, 13)[
+        :, self.feet_indices, 0:3
+    ]
+    cur_footpos_translated = feet_pos - self.root_states[:, 0:3].unsqueeze(1)
+    footpos_in_body_frame = torch.zeros(
+        self.num_envs, len(self.feet_indices), 3, device=self.device
+    )
+    for i in range(len(self.feet_indices)):
+        footpos_in_body_frame[:, i, :] = quat_rotate_inverse(
+            self.base_quat, cur_footpos_translated[:, i, :]
+        )
+
+    # 对于在空中的脚，持续更新其达到的最大高度
+    peak_swing_height = torch.max(peak_swing_height, footpos_in_body_frame[:, :, 2])
+
+    # 在落地瞬间，根据记录的峰值高度计算奖励
+    height_error = torch.square(
+        peak_swing_height - self.cfg.rewards.clearance_height_target
+    )
+    reward_at_peak = torch.exp(-height_error / self.cfg.rewards.tracking_sigma)
+    reward = torch.sum(reward_at_peak * first_contact, dim=1)
+    reward *= torch.norm(self.commands[:, :2], dim=1) > 0.1
+
+    # 更新每条腿的腾空时间和峰值高度
+    feet_air_time += self.dt
+    feet_air_time *= ~contact_filt
+    peak_swing_height *= ~contact_filt
+
+    # 重置
+    reset_env_ids = self.reset_buf.nonzero(as_tuple=False).flatten()
+    if len(reset_env_ids) > 0:
+        last_contacts_2[reset_env_ids] = False
+        feet_air_time[reset_env_ids] = 0.0
+        peak_swing_height[reset_env_ids] = 0.0
+
+    return reward
+
+
+def _reward_survival(self):
+    # Survival reward / penalty
+    return ~(self.reset_buf * ~self.time_out_buf)
+
+
+# ---------------辅助函数---------------------
+
+
+def _init_base_height_points(self):
+    """Get points at which the height measurments are sampled (in base frame)
+
+    [torch.Tensor]: Tensor of shape (num_envs, num_base_height_points, 3)
+    """
+    global num_base_height_points, base_height_points
+
+    y = torch.tensor(
+        [-0.2, -0.15, -0.1, -0.05, 0.0, 0.05, 0.1, 0.15, 0.2],
+        device=self.device,
+        requires_grad=False,
+    )
+    x = torch.tensor(
+        [-0.15, -0.1, -0.05, 0.0, 0.05, 0.1, 0.15],
+        device=self.device,
+        requires_grad=False,
+    )
+    grid_x, grid_y = torch.meshgrid(x, y)
+
+    num_base_height_points = grid_x.numel()
+    base_height_points = torch.zeros(
+        self.num_envs,
+        num_base_height_points,
+        3,
+        device=self.device,
+        requires_grad=False,
+    )
+    base_height_points[:, :, 0] = grid_x.flatten()
+    base_height_points[:, :, 1] = grid_y.flatten()
+
+
+def _get_base_heights(self, env_ids=None):
+    """Samples heights of the terrain at required points around each robot.
+    The points are offset by the base's position and rotated by the base's yaw
+    """
+    global num_base_height_points, base_height_points
+    if num_base_height_points == 0 or base_height_points is None:
+        _init_base_height_points(self)
+
+    if self.cfg.terrain.mesh_type == "plane":
+        return self.root_states[:, 2].clone()
+    elif self.cfg.terrain.mesh_type == "none":
+        raise NameError("Can't measure height with terrain mesh type 'none'")
+
+    if env_ids:
+        points = quat_apply_yaw(
+            self.base_quat[env_ids].repeat(1, num_base_height_points),
+            base_height_points[env_ids],
+        ) + (self.root_states[env_ids, :3]).unsqueeze(1)
+    else:
+        points = quat_apply_yaw(
+            self.base_quat.repeat(1, num_base_height_points),
+            base_height_points,
+        ) + (self.root_states[:, :3]).unsqueeze(1)
+
+    points += self.terrain.cfg.border_size
+    points = (points / self.terrain.cfg.horizontal_scale).long()
+    px = points[:, :, 0].view(-1)
+    py = points[:, :, 1].view(-1)
+    px = torch.clip(px, 0, self.height_samples.shape[0] - 2)
+    py = torch.clip(py, 0, self.height_samples.shape[1] - 2)
+
+    heights1 = self.height_samples[px, py]
+    heights2 = self.height_samples[px + 1, py]
+    heights3 = self.height_samples[px, py + 1]
+    heights = torch.min(heights1, heights2)
+    heights = torch.min(heights, heights3)
+    # heights = (heights1 + heights2 + heights3) / 3
+
+    base_height = heights.view(self.num_envs, -1) * self.terrain.cfg.vertical_scale
+    base_height = torch.mean(self.root_states[:, 2].unsqueeze(1) - base_height, dim=1)
+
+    return base_height
+
+
+def _update_action_history(self):
+    global action_history_buf
+
+    # 初始化
+    if action_history_buf is None:
+        action_history_buf = torch.zeros(
+            self.num_envs,
+            3,
+            self.num_dofs,
+            device=self.device,
+            dtype=torch.float,
+        )
+
+    # 更新
+    action_history_buf[:, 1:, :] = action_history_buf[:, :-1, :].clone()
+    action_history_buf[:, 0, :] = self.actions

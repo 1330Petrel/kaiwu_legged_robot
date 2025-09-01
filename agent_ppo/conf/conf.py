@@ -11,7 +11,7 @@ Author: Tencent AI Arena Authors
 class Config:
     # Basic hyperparameters
     # 基础超参数
-    LR = 3e-4
+    LR = 1e-3
 
     # training params
     # 训练参数

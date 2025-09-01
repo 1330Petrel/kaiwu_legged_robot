@@ -45,7 +45,7 @@ class Algorithm:
         self.value_loss_coef = 1.0
         self.entropy_coef = 0.01
         self.vel_predict_coef = 1.0
-        self.learning_rate = 1e-3
+        self.learning_rate = Config.LR
         self.max_grad_norm = 1.0
         self.use_clipped_value_loss = True
         self.num_mini_batches = Config.NUM_MINI_BATCHES
@@ -136,8 +136,6 @@ class Algorithm:
                 * infos["time_outs"].unsqueeze(1).to(self.device),
                 1,
             )
-
-        not_done_idxs = (dones == False).nonzero().squeeze()
 
         # Record the transition
         # 记录状态转移
