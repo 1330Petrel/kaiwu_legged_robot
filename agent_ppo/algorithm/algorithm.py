@@ -111,10 +111,6 @@ class Algorithm:
         actions_log_prob = self.actor_critic.get_actions_log_prob(actions).detach()
         action_mean = self.actor_critic.action_mean.detach()
         action_sigma = self.actor_critic.action_std.detach()
-        # need to record obs and critic_obs before env.step()
-        # 需要在环境执行step()前记录观测值
-        observations = obs
-        critic_observations = critic_obs
         return (
             actions,
             values,

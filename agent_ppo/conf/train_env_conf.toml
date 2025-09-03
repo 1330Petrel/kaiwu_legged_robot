@@ -189,7 +189,7 @@ base_height_target = 0.32
 
 # Clearance height target (meters)
 # 机器人离地高度
-clearance_height_target = -0.21
+clearance_height_target = -0.20
 
 # Clip negative rewards to zero
 # 是否只允许正奖励，true则负奖励置0
@@ -222,7 +222,7 @@ orientation = -0.2
 
 # Torque penalty
 # 关节扭矩惩罚
-torques = -1e-6
+torques = -1e-4
 
 # Joint velocity penalty
 # 关节速度惩罚
@@ -278,7 +278,7 @@ action_smoothness = -0.01
 
 # Progress reward
 # 前进奖励
-progress = 1.0
+progress = 0.5
 
 # Symmetric contact reward
 # 对称接触奖励
@@ -286,7 +286,7 @@ symmetric_contact = 0.1
 
 # Swing foot clearance reward
 # 摆动腿高度奖励
-swing_trajectory = 0.2
+swing_trajectory = 0.3
 
 # Survival reward
 # 生存奖励

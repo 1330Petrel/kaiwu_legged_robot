@@ -5,7 +5,7 @@ num_envs = 4096
 
 # Whether to return privileged observation data
 # 是否返回特权观测信息
-privileged_obs = true
+privileged_obs = false
 
 [terrain]
 # Enable terrain curriculum learning (cyclic difficulty allocation)
@@ -19,6 +19,12 @@ max_init_terrain_level = 0
 # Terrain type proportions [ripples, slope, stairs_up, stairs_down, obstacles, flat]
 # 环境地形类型及比例，类型数组，元素对应地形类型[波纹，斜坡，上楼梯，下楼梯，障碍物，平面]
 terrain_proportions = [0.2, 0.1, 0.25, 0.2, 0.2, 0.05]
+
+# Enable terrain height measurement and sampling points
+# 是否启用地形高度测量及采样点
+measure_heights = false
+measured_points_x = [-0.8, -0.7, -0.6, -0.5, -0.4, -0.3, -0.2, -0.1, 0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8]  # 1mx1.6m rectangle (without center line)
+measured_points_y = [-0.5, -0.4, -0.3, -0.2, -0.1, 0.0, 0.1, 0.2, 0.3, 0.4, 0.5]
 
 [domain_rand]
 # Randomize elasticity coefficient (0.0-1.0)
@@ -183,7 +189,7 @@ base_height_target = 0.32
 
 # Clearance height target (meters)
 # 机器人离地高度
-clearance_height_target = -0.22
+clearance_height_target = -0.20
 
 # Clip negative rewards to zero
 # 是否只允许正奖励，true则负奖励置0
@@ -216,7 +222,7 @@ orientation = -0.2
 
 # Torque penalty
 # 关节扭矩惩罚
-torques = -1.0
+torques = -1e-6
 
 # Joint velocity penalty
 # 关节速度惩罚
@@ -232,7 +238,7 @@ action_rate = -0.01
 
 # Collision penalty
 # 碰撞惩罚
-collision = -0.0
+collision = -1.0
 
 # Termination reward
 # 终止奖励
@@ -248,11 +254,11 @@ tracking_ang_vel = 0.5
 
 # Foot air time reward
 # 足端腾空时间奖励
-feet_air_time = 0.0
+feet_air_time = 0.5
 
 # Stumbling penalty
 # 绊倒惩罚
-stumble = -0.0
+stumble = -0.5
 
 # Standing penalty
 # 静止惩罚
@@ -272,19 +278,19 @@ action_smoothness = -0.01
 
 # Foot clearance penalty
 # 足端摆动惩罚
-foot_clearance = -0.01
+foot_clearance = -0.0
 
 # Progress reward
 # 前进奖励
-progress = 0.0
+progress = 0.8
 
 # Symmetric contact reward
 # 对称接触奖励
-symmetric_contact = 0.0
+symmetric_contact = 0.1
 
 # Swing foot clearance reward
 # 摆动腿高度奖励
-swing_trajectory = 0.0
+swing_trajectory = 0.2
 
 # Survival reward
 # 生存奖励

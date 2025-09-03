@@ -23,7 +23,7 @@ from agent_diy.agent import Agent
 
 
 @attached
-def workflow(envs, agents: Agent, logger=None, monitor=None, *args, **kwargs):
+def workflow(envs, agents, logger=None, monitor=None, *args, **kwargs):
     # Number of agents, in legged_robot_locomotion_control the value is 1
     # 智能体数量，在legged_robot_locomotion_control中值为1
     agent: Agent = agents[0]
@@ -61,7 +61,7 @@ def workflow(envs, agents: Agent, logger=None, monitor=None, *args, **kwargs):
     storage = RolloutStorage(
         agent.num_envs,
         agent.num_steps_per_env,
-        [agent.num_obs],
+        [agent.num_obs + agent.history_length * (agent.num_obs - 3)],
         [agent.num_privileged_obs],
         [agent.num_actions],
         device=agent.device,
@@ -75,7 +75,7 @@ def workflow(envs, agents: Agent, logger=None, monitor=None, *args, **kwargs):
         logger.error(error_message)
         raise Exception(error_message)
 
-    (obs, critic_obs) = data
+    (obs, privileged_obs) = data
 
     # Trajectory History Initialization
     # 轨迹历史初始化
@@ -88,9 +88,14 @@ def workflow(envs, agents: Agent, logger=None, monitor=None, *args, **kwargs):
         device=agent.device,
     )
     obs_without_lin_vel = obs[:, 3 : agent.num_obs]
-    obs_history_buf[:, -1] = obs_without_lin_vel.to(agent.device)
+    obs_history_buf[:, -1] = obs_without_lin_vel
 
-    last_obs, last_critic_obs = torch.clone(obs), torch.clone(critic_obs)
+    full_obs = torch.cat([obs, obs_history_buf.flatten(1)], dim=1)
+    critic_obs = privileged_obs if agent.num_privileged_obs is not None else full_obs
+    full_obs, critic_obs = full_obs.to(agent.device), critic_obs.to(agent.device)
+
+    last_full_obs, last_critic_obs = torch.clone(full_obs), torch.clone(critic_obs)
+
     last_report_monitor_time = 0
 
     episode = 0
@@ -101,13 +106,13 @@ def workflow(envs, agents: Agent, logger=None, monitor=None, *args, **kwargs):
         start_time = time.time()
         # Phase 1: Data Collection
         # 阶段1：数据收集
-        batch_data, obs_history_buf, last_obs, last_critic_obs = run_episodes_(
+        batch_data, obs_history_buf, last_full_obs, last_critic_obs = run_episodes_(
             env,
             agent,
             storage,
             logger,
             obs_history_buf,
-            last_obs,
+            last_full_obs,
             last_critic_obs,
             episode,
             ep_infos,
@@ -160,11 +165,17 @@ def workflow(envs, agents: Agent, logger=None, monitor=None, *args, **kwargs):
                 "rew_lin_vel_z",
             ]
 
+            # diy_keys = [
+            #     "rew_base_height",
+            #     "rew_powers",
+            #     "rew_action_smoothness",
+            #     "rew_foot_clearance",
+            # ]
             diy_keys = [
+                "rew_stumble",
                 "rew_base_height",
-                "rew_powers",
-                "rew_action_smoothness",
-                "rew_foot_clearance",
+                "rew_symmetric_contact",
+                "rew_swing_trajectory",
             ]
 
             if len(ep_infos) > 0:
@@ -299,7 +310,7 @@ def run_episodes_(
     storage: RolloutStorage,
     logger,
     obs_history_buf,
-    last_obs,
+    last_full_obs,
     last_critic_obs,
     episode,
     ep_infos,
@@ -309,8 +320,6 @@ def run_episodes_(
     lenbuffer,
 ):
     def update_transition(
-        history,
-        next_history,
         actions,
         values,
         actions_log_prob,
@@ -323,8 +332,6 @@ def run_episodes_(
         dones,
         infos,
     ):
-        transition.history = history
-        transition.next_history = next_history
         transition.actions = actions
         transition.values = values
         transition.actions_log_prob = actions_log_prob
@@ -346,14 +353,12 @@ def run_episodes_(
     # 轨迹数据存储结构
     transition = RolloutStorage.Transition()
 
-    obs, critic_obs = last_obs, last_critic_obs
+    full_obs, critic_obs = last_full_obs, last_critic_obs
 
     # Policy execution loop
     # 策略执行循环
     with torch.inference_mode():
         for i in range(agent.num_steps_per_env):
-            history = obs_history_buf.flatten(1).to(agent.device)
-
             # Action generation
             # 动作生成
             (
@@ -362,8 +367,10 @@ def run_episodes_(
                 actions_log_prob,
                 action_mean,
                 action_sigma,
-            ) = agent.predict_local(obs, critic_obs, history)
-            command_actions = torch.clip(actions, -100.0, 100.0).to(agent.device)
+                detach_full_obs,
+                detach_critic_obs,
+            ) = agent.predict_local(full_obs, critic_obs)
+            command_actions = torch.clip(actions, -6.0, 6.0).to(agent.device)
 
             # Environment interaction
             # 环境交互
@@ -379,34 +386,35 @@ def run_episodes_(
                 logger.warning(f"episode {episode}, is None happened!")
                 break
 
-            critic_obs = privileged_obs if privileged_obs is not None else obs
-            dones = torch.logical_or(terminated, truncated)
-            obs, critic_obs, rewards, dones = (
-                obs.to(agent.device),
-                critic_obs.to(agent.device),
-                rewards.to(agent.device),
-                dones.to(agent.device),
-            )
-
             # process trajectory history
             # 处理历史轨迹
+            dones = torch.logical_or(terminated, truncated)
             env_ids = dones.nonzero(as_tuple=False).flatten()
             obs_history_buf[env_ids] = 0
             obs_without_lin_vel = obs[:, 3 : agent.num_obs]
             obs_history_buf[:, :-1] = obs_history_buf[:, 1:].clone()
             obs_history_buf[:, -1] = obs_without_lin_vel
 
+            full_obs = torch.cat([obs, obs_history_buf.flatten(1)], dim=1)
+            critic_obs = (
+                privileged_obs if agent.num_privileged_obs is not None else full_obs
+            )
+            full_obs, critic_obs, rewards, dones = (
+                full_obs.to(agent.device),
+                critic_obs.to(agent.device),
+                rewards.to(agent.device),
+                dones.to(agent.device),
+            )
+
             update_transition(
-                history,
-                obs_history_buf.flatten(1).to(agent.device),
                 actions,
                 values,
                 actions_log_prob,
                 action_mean,
                 action_sigma,
-                last_obs,
-                last_critic_obs,
-                obs,
+                detach_full_obs,
+                detach_critic_obs,
+                full_obs,
                 rewards,
                 dones,
                 infos,
@@ -427,12 +435,10 @@ def run_episodes_(
 
         # Advantage function computation
         # 优势函数计算
-        last_critic_obs = torch.clone(critic_obs)
-        last_values = agent.algorithm.actor_critic.evaluate(
-            last_critic_obs, obs_history_buf.flatten(1)
-        ).detach()
+        last_values = agent.algorithm.actor_critic.evaluate(critic_obs).detach()
         storage.compute_returns(last_values, agent.algorithm.gamma, agent.algorithm.lam)
-        last_obs = torch.clone(obs)
+        last_full_obs = torch.clone(full_obs)
+        last_critic_obs = torch.clone(critic_obs)
 
     # Generate training batches
     # 生成训练批次
@@ -443,4 +449,4 @@ def run_episodes_(
     for mini_batch in generator:
         batch_data.append(mini_batch)
     storage.clear()
-    return batch_data, obs_history_buf, last_obs, last_critic_obs
+    return batch_data, obs_history_buf, last_full_obs, last_critic_obs

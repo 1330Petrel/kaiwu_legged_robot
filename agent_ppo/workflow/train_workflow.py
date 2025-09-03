@@ -115,7 +115,6 @@ def workflow(envs, agents, logger=None, monitor=None, *args, **kwargs):
     # Main Training Loop
     # 主训练循环
     while True:
-        # logger.info(f"Episode {episode} start, usr_conf is {usr_conf}")
         start_time = time.time()
         # Phase 1: Data Collection
         # 阶段1：数据收集
@@ -144,7 +143,6 @@ def workflow(envs, agents, logger=None, monitor=None, *args, **kwargs):
         agent.learn(batch_data)
         end_time = time.time()
         total_cost_time = round(end_time - start_time, 2)
-        # logger.info(f"Episode {episode} end, cost_time is {total_cost_time} s")
 
         # Phase 3: Monitoring Metrics Processing
         # 阶段3：监控指标处理
@@ -299,15 +297,6 @@ def workflow(envs, agents, logger=None, monitor=None, *args, **kwargs):
 
             monitor.put_data({os.getpid(): monitor_data})
             last_report_monitor_time = now
-
-        # training_metrics = get_training_metrics()
-        # if training_metrics:
-        #     for key, value in training_metrics.items():
-        #         if key == "env":
-        #             for env_key, env_value in value.items():
-        #                 logger.info(f"training_metrics {key} {env_key} is {env_value}")
-        #         else:
-        #             logger.info(f"training_metrics {key} is {value}")
 
         ep_infos.clear()
 
@@ -471,15 +460,6 @@ def run_episodes_(
         ).detach()
         storage.compute_returns(last_values, agent.algorithm.gamma, agent.algorithm.lam)
         last_obs = torch.clone(obs)
-
-    # logger.info(
-    #     f"non_zero:{torch.nonzero(storage.observations[:,0,:], as_tuple=False)}"
-    # )
-    # logger.info(
-    #     f"obs:{storage.observations[:, 0, agent.privileged_dim+6:agent.privileged_dim+9]}"
-    # )
-    # logger.info(f"adv:{storage.advantages[:,0]}")
-    # logger.info(f"values:{storage.values[:,0]}")
 
     # Generate training batches
     # 生成训练批次

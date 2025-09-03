@@ -19,8 +19,6 @@ SampleData = create_cls(
     next_obs=None,
     critic_obs=None,
     actions=None,
-    history=None,
-    next_history=None,
     target_values=None,
     advantages=None,
     returns=None,
@@ -64,16 +62,14 @@ def NumpyData2SampleData(s_data):
         next_obs=s_data[1],
         critic_obs=s_data[2],
         actions=s_data[3],
-        history=s_data[4],
-        next_history=s_data[5],
-        target_values=s_data[6],
-        advantages=s_data[7],
-        returns=s_data[8],
-        old_action_log_prob=s_data[9],
-        old_mu=s_data[10],
-        old_sigma=s_data[11],
-        hid_states=s_data[12],
-        masks=s_data[13],
+        target_values=s_data[4],
+        advantages=s_data[5],
+        returns=s_data[6],
+        old_action_log_prob=s_data[7],
+        old_mu=s_data[8],
+        old_sigma=s_data[9],
+        hid_states=s_data[10],
+        masks=s_data[11],
     )
 
 
@@ -98,9 +94,6 @@ class RolloutStorage:
             self.action_sigma = None
             self.hidden_states = None
 
-            self.history = None
-            self.next_history = None
-
         def clear(self):
             self.__init__()
 
@@ -111,8 +104,6 @@ class RolloutStorage:
         obs_shape,
         privileged_obs_shape,
         actions_shape,
-        history_obs_dim=45,
-        history_length=10,
         device="cpu",
     ):
 
@@ -147,19 +138,6 @@ class RolloutStorage:
         self.dones = torch.zeros(
             num_transitions_per_env, num_envs, 1, device=self.device
         ).byte()
-
-        self.history = torch.zeros(
-            num_transitions_per_env,
-            num_envs,
-            history_length * history_obs_dim,
-            device=self.device,
-        )
-        self.next_history = torch.zeros(
-            num_transitions_per_env,
-            num_envs,
-            history_length * history_obs_dim,
-            device=self.device,
-        )
 
         # For PPO
         self.actions_log_prob = torch.zeros(
@@ -200,9 +178,6 @@ class RolloutStorage:
                 transition.critic_observations
             )
         self.actions[self.step].copy_(transition.actions)
-
-        self.history[self.step].copy_(transition.history)
-        self.next_history[self.step].copy_(transition.next_history)
 
         self.rewards[self.step].copy_(transition.rewards.view(-1, 1))
         self.dones[self.step].copy_(transition.dones.view(-1, 1))
@@ -346,9 +321,6 @@ class RolloutStorage:
         old_mu = self.mu.flatten(0, 1)
         old_sigma = self.sigma.flatten(0, 1)
 
-        history = self.history.flatten(0, 1)
-        next_history = self.next_history.flatten(0, 1)
-
         # 同一批数据要重复使用 num_epochs 次
         for epoch in range(num_epochs):
             # 每次都切分成 num_mini_batches 个小批量
@@ -370,10 +342,7 @@ class RolloutStorage:
                 old_mu_batch = old_mu[batch_idx]
                 old_sigma_batch = old_sigma[batch_idx]
 
-                history_batch = history[batch_idx]
-                next_history_batch = next_history[batch_idx]
-
-                yield obs_batch, next_obs_batch, critic_observations_batch, actions_batch, history_batch, next_history_batch, target_values_batch, advantages_batch, returns_batch, old_actions_log_prob_batch, old_mu_batch, old_sigma_batch, (
+                yield obs_batch, next_obs_batch, critic_observations_batch, actions_batch, target_values_batch, advantages_batch, returns_batch, old_actions_log_prob_batch, old_mu_batch, old_sigma_batch, (
                     None,
                     None,
                 ), None

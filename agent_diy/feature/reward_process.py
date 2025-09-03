@@ -66,14 +66,19 @@ def _reward_foot_clearance(self):
     ]
     cur_footpos_translated = feet_pos - self.root_states[:, 0:3].unsqueeze(1)
     cur_footvel_translated = feet_vel - self.root_states[:, 7:10].unsqueeze(1)
-    footpos_in_body_frame = quat_rotate_inverse(
-        self.base_quat.unsqueeze(1).expand(-1, len(self.feet_indices), -1),
-        cur_footpos_translated.view(-1, 3),
-    ).view(self.num_envs, len(self.feet_indices), 3)
-    footvel_in_body_frame = quat_rotate_inverse(
-        self.base_quat.unsqueeze(1).expand(-1, len(self.feet_indices), -1),
-        cur_footvel_translated.view(-1, 3),
-    ).view(self.num_envs, len(self.feet_indices), 3)
+    footpos_in_body_frame = torch.zeros(
+        self.num_envs, len(self.feet_indices), 3, device=self.device
+    )
+    footvel_in_body_frame = torch.zeros(
+        self.num_envs, len(self.feet_indices), 3, device=self.device
+    )
+    for i in range(len(self.feet_indices)):
+        footpos_in_body_frame[:, i, :] = quat_rotate_inverse(
+            self.base_quat, cur_footpos_translated[:, i, :]
+        )
+        footvel_in_body_frame[:, i, :] = quat_rotate_inverse(
+            self.base_quat, cur_footvel_translated[:, i, :]
+        )
 
     # 计算足端高度误差和侧向速度
     height_error = torch.square(

@@ -95,7 +95,7 @@ class Agent(BaseAgent):
         self.algorithm.init_storage(
             self.num_envs,
             self.num_steps_per_env,
-            [self.num_obs],
+            [self.num_obs + self.history_length * (self.num_obs - 3)],
             [self.num_privileged_obs],
             [self.num_actions],
         )
@@ -107,7 +107,7 @@ class Agent(BaseAgent):
 
     @predict_wrapper
     def predict(self, list_obs_data):
-        (obs, critic_obs, history) = list_obs_data
+        (obs, critic_obs) = list_obs_data
         with torch.no_grad():
             (
                 actions,
@@ -115,7 +115,9 @@ class Agent(BaseAgent):
                 actions_log_prob,
                 action_mean,
                 action_sigma,
-            ) = self.algorithm.act_(obs, critic_obs, history)
+                observations,
+                critic_observations,
+            ) = self.algorithm.act_(obs, critic_obs)
 
         return [ActData(action=actions)]
 
@@ -152,7 +154,7 @@ class Agent(BaseAgent):
         with torch.no_grad():
             obs[:, 9] = 1.0 * 2
             actions = self.algorithm.actor_critic.act_inference(
-                obs, self.eval_history_buffer
+                torch.cat([obs, self.eval_history_buffer.flatten(1)], dim=1)
             )
 
         return [ActData(action=actions)]
@@ -162,13 +164,13 @@ class Agent(BaseAgent):
         self.train_count += 1
         return self.algorithm.learn(list_sample_data)
 
-    def predict_local(self, obs, critic_obs, history):
+    def predict_local(self, obs, critic_obs):
         """
         local predict
         本地预测
         """
         self.predict_count += 1
-        return self.algorithm.act_(obs, critic_obs, history)
+        return self.algorithm.act_(obs, critic_obs)
 
     def action_process(self, act_data):
         pass

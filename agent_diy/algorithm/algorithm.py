@@ -68,7 +68,7 @@ class Algorithm:
         privileged_obs_shape,
         action_shape,
     ):
-        self.storage = RolloutStorage(
+        self.storage: RolloutStorage = RolloutStorage(
             num_envs,
             num_transitions_per_env,
             obs_shape,
@@ -83,14 +83,11 @@ class Algorithm:
     def train_mode(self):
         self.actor_critic.train()
 
-    def act(self, obs, critic_obs, history):
+    def act(self, obs, critic_obs):
         # Compute the actions and values
         # 计算动作和值函数
-        self.transition.history = history
-        self.transition.actions = self.actor_critic.act(obs, history).detach()
-        self.transition.values = self.actor_critic.evaluate(
-            critic_obs, history
-        ).detach()
+        self.transition.actions = self.actor_critic.act(obs).detach()
+        self.transition.values = self.actor_critic.evaluate(critic_obs).detach()
         self.transition.actions_log_prob = self.actor_critic.get_actions_log_prob(
             self.transition.actions
         ).detach()
@@ -102,11 +99,12 @@ class Algorithm:
         self.transition.critic_observations = critic_obs
         return self.transition.actions
 
-    def act_(self, obs, critic_obs, history):
+    def act_(self, original_obs, original_critic_obs):
         # Compute the actions and values
         # 计算动作和值函数
-        actions = self.actor_critic.act(obs, history).detach()
-        values = self.actor_critic.evaluate(critic_obs, history).detach()
+        obs, critic_obs = original_obs.detach(), original_critic_obs.detach()
+        actions = self.actor_critic.act(obs).detach()
+        values = self.actor_critic.evaluate(critic_obs).detach()
         actions_log_prob = self.actor_critic.get_actions_log_prob(actions).detach()
         action_mean = self.actor_critic.action_mean.detach()
         action_sigma = self.actor_critic.action_std.detach()
@@ -116,11 +114,12 @@ class Algorithm:
             actions_log_prob,
             action_mean,
             action_sigma,
+            obs,
+            critic_obs,
         )
 
-    def process_env_step(self, next_obs, next_history, rewards, dones, infos):
+    def process_env_step(self, next_obs, rewards, dones, infos):
         self.transition.next_observations = next_obs
-        self.transition.next_history = next_history
         self.transition.rewards = rewards.clone()
         self.transition.dones = dones
         # Bootstrapping on time outs
@@ -138,8 +137,8 @@ class Algorithm:
         self.transition.clear()
         self.actor_critic.reset(dones)
 
-    def compute_returns(self, last_critic_obs, history):
-        last_values = self.actor_critic.evaluate(last_critic_obs, history).detach()
+    def compute_returns(self, last_critic_obs):
+        last_values = self.actor_critic.evaluate(last_critic_obs).detach()
         self.storage.compute_returns(last_values, self.gamma, self.lam)
 
     def learn(self, batch_data=None):
@@ -163,8 +162,6 @@ class Algorithm:
                 next_obs_batch,
                 critic_obs_batch,
                 actions_batch,
-                history_batch,
-                next_history_batch,
                 target_values_batch,
                 advantages_batch,
                 returns_batch,
@@ -179,7 +176,6 @@ class Algorithm:
             # 传入旧的观测，用当前的(已更新的)模型进行前向传播
             self.actor_critic.act(
                 obs_batch,
-                history_batch,
                 masks=masks_batch,
                 hidden_states=hid_states_batch[0],
             )
@@ -188,7 +184,6 @@ class Algorithm:
             )
             value_batch = self.actor_critic.evaluate(
                 critic_obs_batch,
-                history_batch,
                 masks=masks_batch,
                 hidden_states=hid_states_batch[1],
             )
@@ -248,13 +243,11 @@ class Algorithm:
 
             # --------- 三元组损失 (Triplet Loss) ---------
             # 1. 编码当前状态的隐向量 z_t
-            _, z = self.actor_critic.encode(obs_batch, history_batch)
+            _, z = self.actor_critic.encode(obs_batch)
             # 2. 使用转移模型 (trans) 预测下一个隐向量 z_t+1_pred (锚点)
             pred_next_z = self.actor_critic.trans(torch.cat([z, actions_batch], dim=1))
             # 3. 编码真实的下一个状态，得到目标隐向量 z_t+1_target (正样本)
-            _, targ_next_z = self.actor_critic.encode(
-                next_obs_batch, next_history_batch
-            )
+            _, targ_next_z = self.actor_critic.encode(next_obs_batch)
             # 4. 在批次内随机打乱，构造负样本 z_t+1_neg
             batch_size = z.size(0)
             perm = np.random.permutation(batch_size)

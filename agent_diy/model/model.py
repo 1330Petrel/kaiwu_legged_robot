@@ -7,18 +7,12 @@
 Author: Tencent AI Arena Authors
 """
 
-
 import torch
 from torch import nn
 from torch.distributions import Normal
 
 
 class TeacherActorCritic(nn.Module):
-    """
-    Teacher model's Actor-Critic network with history encoder, policy network and value network
-    教师模型的Actor-Critic网络, 包含历史编码器、策略网络和价值网络
-    """
-
     is_recurrent = False
 
     def __init__(
@@ -42,8 +36,9 @@ class TeacherActorCritic(nn.Module):
         super(TeacherActorCritic, self).__init__()
 
         activation = get_activation(activation)
-        self.num_obs = num_obs
         num_obs = num_obs - 3  # no lin_vel
+        self.history_length = history_length
+        self.num_obs = num_obs
 
         # 1. 历史编码器 (MLP Encoder)
         # 输入是展平后的历史本体感受信息，输出是低维的潜向量 z
@@ -114,13 +109,14 @@ class TeacherActorCritic(nn.Module):
         std = self.std.to(mean.device)
         self.distribution = Normal(mean, std)
 
-    def encode(self, observations, history):
+    def encode(self, observations):
         """将历史信息编码为潜向量 z"""
+        history = observations[:, -self.history_length * self.num_obs :]
         self.z = self.mlp_encoder(history)
-        return observations[:, 3:self.num_obs], self.z
+        return observations[:, 3 : self.num_obs + 3], self.z
 
-    def act(self, observations, history, **kwargs):
-        obs, self.z = self.encode(observations, history)
+    def act(self, observations, **kwargs):
+        obs, self.z = self.encode(observations)
         actor_obs = torch.concat([self.z.detach(), obs], dim=-1)
         self.update_distribution(actor_obs)
         return self.distribution.sample()
@@ -128,14 +124,14 @@ class TeacherActorCritic(nn.Module):
     def get_actions_log_prob(self, actions):
         return self.distribution.log_prob(actions).sum(dim=-1)
 
-    def act_inference(self, observations, history):
-        obs, self.z = self.encode(observations, history)
+    def act_inference(self, observations):
+        obs, self.z = self.encode(observations)
         actor_obs = torch.concat([self.z.detach(), obs], dim=-1)
         actions_mean = self.actor(actor_obs)
         return actions_mean
 
-    def evaluate(self, critic_observations, history, **kwargs):
-        obs, self.z = self.encode(critic_observations, history)
+    def evaluate(self, critic_observations, **kwargs):
+        obs, self.z = self.encode(critic_observations)
         critic_obs = torch.concat([self.z, obs], dim=-1)
         value = self.critic(critic_obs)
         return value
