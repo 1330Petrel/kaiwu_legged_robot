@@ -9,31 +9,24 @@ Author: Tencent AI Arena Authors
 
 
 from tools.base_env_process import IsaacProcessManager
-from kaiwu_agent.utils.common_func import Frame, attached
-import random
+from kaiwu_agent.utils.common_func import attached
 import os
 import time
-from agent_ppo.feature.definition import (
-    sample_process,
-)
 from agent_ppo.conf.conf import Config
 from agent_ppo.feature.definition import RolloutStorage
 from tools.train_env_conf_validate import read_usr_conf
-from tools.metrics_utils import get_training_metrics
 from tools.utils import calculate_terrain_stats
 import torch
 import statistics
 from collections import deque, defaultdict
 from agent_ppo.agent import Agent
-import pdb
-import math
 
 
 @attached
 def workflow(envs, agents, logger=None, monitor=None, *args, **kwargs):
     # Number of agents, in legged_robot_locomotion_control the value is 1
     # 智能体数量，在legged_robot_locomotion_control中值为1
-    agent = agents[0]
+    agent: Agent = agents[0]
 
     # Read and validate configuration file
     # 配置文件读取和校验
@@ -83,6 +76,7 @@ def workflow(envs, agents, logger=None, monitor=None, *args, **kwargs):
         raise Exception(error_message)
 
     (obs, critic_obs) = data
+    critic_obs[:, agent.privileged_dim + 9].abs_()
     obs = torch.clone(critic_obs)
     logger.info(f"critic_obs.shape:{critic_obs.shape}")
 
@@ -344,8 +338,6 @@ def run_episodes_(
         transition.actions_log_prob = actions_log_prob
         transition.action_mean = action_mean
         transition.action_sigma = action_sigma
-        # need to record obs and critic_obs before env.step()
-        # 在执行env.step()前记录obs和critic_obs前需要
         transition.observations = obs
         transition.critic_observations = critic_obs
         transition.rewards = rewards.clone()
@@ -382,8 +374,6 @@ def run_episodes_(
             ) = agent.predict_local(obs, critic_obs, history)
 
             command_actions = torch.clip(actions, -6.0, 6.0).to(agent.device)
-            # if i == 0:
-            #     logger.info(f"clipped_action:{command_actions}")
 
             # Environment interaction
             # 环境交互
@@ -395,9 +385,10 @@ def run_episodes_(
             frame_no, obs, rewards, terminated, truncated, (infos, privileged_obs) = (
                 data
             )
+            privileged_obs[:, agent.privileged_dim + 9].abs_()
             obs = torch.clone(privileged_obs)
             if obs is None:
-                logger.info(f"episode {episode}, is None happened!")
+                logger.warning(f"episode {episode}, is None happened!")
                 break
 
             dones = torch.logical_or(terminated, truncated)
@@ -429,7 +420,8 @@ def run_episodes_(
             transition.clear()
 
             env_ids = dones.nonzero(as_tuple=False).flatten()
-            trajectory_history[env_ids] = 0
+            if len(env_ids) > 0:
+                trajectory_history[env_ids] = 0.0
             obs_without_command = torch.concat(
                 (
                     obs[:, agent.privileged_dim : agent.privileged_dim + 6],
@@ -437,9 +429,8 @@ def run_episodes_(
                 ),
                 dim=1,
             )
-            trajectory_history = torch.concat(
-                (trajectory_history[:, 1:], obs_without_command.unsqueeze(1)), dim=1
-            )
+            trajectory_history[:, :-1] = trajectory_history[:, 1:].clone()
+            trajectory_history[:, -1] = obs_without_command
 
             if "episode" in infos:
                 ep_infos.append(infos["episode"])
@@ -453,13 +444,13 @@ def run_episodes_(
 
         # Advantage function computation
         # 优势函数计算
-        last_critic_obs = torch.clone(critic_obs)
+        last_critic_obs.copy_(critic_obs)
         aug_last_critic_obs = last_critic_obs.detach()
         last_values = agent.algorithm.actor_critic.evaluate(
             aug_last_critic_obs
         ).detach()
         storage.compute_returns(last_values, agent.algorithm.gamma, agent.algorithm.lam)
-        last_obs = torch.clone(obs)
+        last_obs.copy_(obs)
 
     # Generate training batches
     # 生成训练批次

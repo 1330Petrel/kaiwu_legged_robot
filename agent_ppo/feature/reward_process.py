@@ -20,6 +20,22 @@ feet_air_time = None
 peak_swing_height = None
 
 
+def _reward_tracking_lin_vel(self):
+    self.commands[:, 0].abs_()
+    lin_vel_error = torch.sum(
+        torch.square(self.commands[:, :2] - self.base_lin_vel[:, :2]), dim=1
+    )
+    return torch.exp(-lin_vel_error / self.cfg.rewards.tracking_sigma)
+    # # 当 |x速度| > |x指令| 时，只计算 y 方向误差；否则计算 x,y 的平方和误差
+    # mask = torch.abs(self.base_lin_vel[:, 0]) > torch.abs(self.commands[:, 0])
+    # lin_vel_error = torch.where(
+    #     mask,
+    #     torch.square(self.commands[:, 1] - self.base_lin_vel[:, 1]),
+    #     torch.sum(torch.square(self.commands[:, :2] - self.base_lin_vel[:, :2]), dim=1),
+    # )
+    # return torch.exp(-lin_vel_error / self.cfg.rewards.tracking_sigma)
+
+
 def _reward_base_height(self):
     """
     覆盖legged_robot中的基座高度惩罚项的错误实现
@@ -54,11 +70,13 @@ def _reward_action_smoothness(self):
 
 
 def _reward_progress(self):
-    forward_vel = self.base_lin_vel[:, 0]
-    # 只有当指令是要求前进时，才给予这个奖励，避免在其他指令下产生冲突
-    progress_reward = forward_vel * (self.commands[:, 0] > 0)
-    # 将负的前进速度裁剪掉，不希望因为后退而惩罚它
-    return torch.clip(progress_reward, min=0.0)
+    # 希望速度与指令方向一致
+    reward = self.base_lin_vel[:, 0].clone()
+    # reward = self.base_lin_vel[:, 0] * torch.sign(self.commands[:, 0])
+    # 将 (-0.05, 0] 范围内的值设置为 0
+    mask = (reward < 0.0) & (reward > -0.05)
+    reward.masked_fill_(mask, 0.0)
+    return reward
 
 
 def _reward_symmetric_contact(self):
@@ -78,13 +96,14 @@ def _reward_symmetric_contact(self):
     # 获取足端接触状态
     contact = self.contact_forces[:, self.feet_indices, 2] > 1.0
     contact_filt = torch.logical_or(contact, last_contacts_1)
-    last_contacts_1 = contact.clone()
+    last_contacts_1.copy_(contact)
     # 计算每对对角腿的同步性：
     sync_diag1 = torch.where(contact_filt[:, 0] == contact_filt[:, 3], 1.0, 0.0)
     sync_diag2 = torch.where(contact_filt[:, 1] == contact_filt[:, 2], 1.0, 0.0)
     # 只在机器人运动时关心这个
-    is_moving = torch.norm(self.commands[:, :2], dim=1) > 0.1
-    reward = (sync_diag1 + sync_diag2) * is_moving
+    is_moving = self.base_lin_vel[:, 0] > 0.05
+    # is_moving = self.base_lin_vel[:, 0] * torch.sign(self.commands[:, 0]) > 0.05
+    reward = is_moving * (sync_diag1 + sync_diag2)
 
     # 重置
     reset_env_ids = self.reset_buf.nonzero(as_tuple=False).flatten()
@@ -114,9 +133,9 @@ def _reward_swing_trajectory(self):
             device=self.device,
             requires_grad=False,
         )
-        peak_swing_height = torch.zeros(
-            self.num_envs,
-            self.feet_indices.shape[0],
+        peak_swing_height = torch.full(
+            (self.num_envs, self.feet_indices.shape[0]),
+            -torch.inf,
             dtype=torch.float,
             device=self.device,
             requires_grad=False,
@@ -125,10 +144,10 @@ def _reward_swing_trajectory(self):
     # 检测接触状态
     contact = self.contact_forces[:, self.feet_indices, 2] > 1.0
     contact_filt = torch.logical_or(contact, last_contacts_2)
-    last_contacts_2 = contact.clone()
+    last_contacts_2.copy_(contact)
 
     # 检测刚刚落地
-    first_contact = (feet_air_time > 0.0) * contact_filt
+    first_contact = (feet_air_time > 0.0) & contact_filt
 
     # 将足端位置转换到机体坐标系
     feet_pos = self.rigid_body_states.view(self.num_envs, -1, 13)[
@@ -144,15 +163,23 @@ def _reward_swing_trajectory(self):
         )
 
     # 对于在空中的脚，持续更新其达到的最大高度
-    peak_swing_height = torch.max(peak_swing_height, footpos_in_body_frame[:, :, 2])
+    torch.maximum(
+        peak_swing_height, footpos_in_body_frame[:, :, 2], out=peak_swing_height
+    )
 
     # 在落地瞬间，根据记录的峰值高度计算奖励
     height_error = torch.square(
         peak_swing_height - self.cfg.rewards.clearance_height_target
     )
-    reward_at_peak = torch.exp(-height_error / self.cfg.rewards.tracking_sigma)
-    reward = torch.sum(reward_at_peak * first_contact, dim=1)
-    reward *= torch.norm(self.commands[:, :2], dim=1) > 0.1
+    reward_at_peak = torch.exp(-height_error / self.cfg.rewards.height_tracking_sigma)
+    valid_mask = (
+        first_contact
+        & (peak_swing_height >= self.cfg.rewards.meaningful_height_target[0])
+        & (peak_swing_height < self.cfg.rewards.meaningful_height_target[1])
+    )
+    reward = torch.sum(valid_mask * reward_at_peak, dim=1)
+    reward *= self.base_lin_vel[:, 0] > 0.05
+    # reward *= self.base_lin_vel[:, 0] * torch.sign(self.commands[:, 0]) > 0.05
 
     # 更新每条腿的腾空时间和峰值高度
     feet_air_time += self.dt
@@ -164,14 +191,38 @@ def _reward_swing_trajectory(self):
     if len(reset_env_ids) > 0:
         last_contacts_2[reset_env_ids] = False
         feet_air_time[reset_env_ids] = 0.0
-        peak_swing_height[reset_env_ids] = 0.0
+        peak_swing_height[reset_env_ids] = -torch.inf
 
     return reward
 
 
-def _reward_survival(self):
-    # Survival reward / penalty
-    return ~(self.reset_buf * ~self.time_out_buf)
+def _reward_score(self):
+    env_ids = self.reset_buf.nonzero(as_tuple=False).flatten()
+    if len(env_ids) > 0:
+        success = torch.zeros(
+            self.num_envs, dtype=torch.float, device=self.device, requires_grad=False
+        )
+        velocity = torch.zeros(
+            self.num_envs, dtype=torch.float, device=self.device, requires_grad=False
+        )
+        stability = torch.zeros(
+            self.num_envs, dtype=torch.float, device=self.device, requires_grad=False
+        )
+
+        distance = torch.norm(
+            self.root_states[env_ids, :2] - self.env_origins[env_ids, :2], dim=1
+        )
+        success[env_ids] = 1.0 * (distance > self.terrain.env_length / 2)
+        velocity[env_ids] = distance / (self.episode_length_buf[env_ids] * self.dt)
+        stability[env_ids] = (
+            self._reward_torques()[env_ids] / self.episode_length_buf[env_ids]
+        )
+
+        vel_term = (2.0 / (1.0 + torch.exp(-velocity)) - 1.0) * 0.3
+        stab_term = torch.exp(stability * 1000.0) * 0.2
+        return success * 0.5 + vel_term + stab_term
+
+    return torch.zeros(self.num_envs, device=self.device)
 
 
 # ---------------辅助函数---------------------
