@@ -20,7 +20,7 @@ class TeacherActorCritic(nn.Module):
         num_obs,
         history_length,
         num_actions,
-        latent_dim=20,
+        latent_dim=32,
         actor_hidden_dims=[512, 256, 128],
         critic_hidden_dims=[512, 256, 128],
         encoder_hidden_dims=[256, 128, 64],
@@ -54,9 +54,9 @@ class TeacherActorCritic(nn.Module):
         # 2. 潜空间转移模型 (Transition Model)
         # 输入是当前潜向量z和当前动作a的拼接，输出是预测的下一个潜向量z'
         self.trans = nn.Sequential(
-            nn.Linear(latent_dim + num_actions, 32),
+            nn.Linear(latent_dim + num_actions, latent_dim * 2),
             nn.ELU(),
-            nn.Linear(32, latent_dim),
+            nn.Linear(latent_dim * 2, latent_dim),
         )
 
         # 3. 策略网络构建

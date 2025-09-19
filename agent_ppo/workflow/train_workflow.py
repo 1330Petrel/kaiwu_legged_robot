@@ -76,7 +76,7 @@ def workflow(envs, agents, logger=None, monitor=None, *args, **kwargs):
         raise Exception(error_message)
 
     (obs, critic_obs) = data
-    critic_obs[:, agent.privileged_dim + 9].abs_()
+    # critic_obs[:, agent.privileged_dim + 6].abs_()
     obs = torch.clone(critic_obs)
     logger.info(f"critic_obs.shape:{critic_obs.shape}")
 
@@ -385,7 +385,7 @@ def run_episodes_(
             frame_no, obs, rewards, terminated, truncated, (infos, privileged_obs) = (
                 data
             )
-            privileged_obs[:, agent.privileged_dim + 9].abs_()
+            # privileged_obs[:, agent.privileged_dim + 6].abs_()
             obs = torch.clone(privileged_obs)
             if obs is None:
                 logger.warning(f"episode {episode}, is None happened!")

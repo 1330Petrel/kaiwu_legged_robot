@@ -11,10 +11,7 @@ Author: Tencent AI Arena Authors
 from kaiwu_agent.utils.common_func import create_cls, Frame, attached
 import torch
 import numpy as np
-import collections
 from agent_ppo.conf.conf import Config
-
-import pdb
 
 
 SampleData = create_cls(

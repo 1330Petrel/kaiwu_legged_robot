@@ -10,7 +10,6 @@ Author: Tencent AI Arena Authors
 
 import torch
 import torch.nn as nn
-import numpy as np
 import os
 import time
 from agent_ppo.conf.conf import Config

@@ -18,7 +18,7 @@ max_init_terrain_level = 0
 
 # Terrain type proportions [ripples, slope, stairs_up, stairs_down, obstacles, flat]
 # 环境地形类型及比例，类型数组，元素对应地形类型[波纹，斜坡，上楼梯，下楼梯，障碍物，平面]
-terrain_proportions = [0.2, 0.1, 0.25, 0.2, 0.2, 0.05]
+terrain_proportions = [0.2, 0.05, 0.25, 0.2, 0.25, 0.05]
 
 # Enable terrain height measurement and sampling points
 # 是否启用地形高度测量及采样点
@@ -78,11 +78,11 @@ max_lin_vel_x_curriculum = 1.5
 
 # Max linear velocity Y (non-flat terrain)(m/s)
 # 非平面地形上，y方向的最大线速度，单位是米/秒（m/s），当curriculum = true时生效
-max_lin_vel_y_curriculum = 0.2
+max_lin_vel_y_curriculum = 0.0
 
 # Max angular velocity yaw (non-flat terrain)（rad/s）
 # 非平面地形上，最大角速度偏航轴，单位是弧度/秒（rad/s），当curriculum = true时生效
-max_ang_vel_yaw_curriculum = 0.785
+max_ang_vel_yaw_curriculum = 0.0
 
 # Max flat terrain linear X velocity (m/s)
 # 平面地形上，x方向的最大线速度命令，单位是米/秒（m/s）
@@ -90,11 +90,11 @@ max_flat_lin_vel_x_curriculum = 1.5
 
 # Max flat terrain linear Y velocity (m/s)
 # 平面地形上，y方向的最大线速度命令，单位是米/秒（m/s）
-max_flat_lin_vel_y_curriculum = 0.2
+max_flat_lin_vel_y_curriculum = 0.0
 
 # Max flat terrain angular velocity (rad/s)
 # 平面地形上，最大偏航角速度命令，单位是弧度/秒（rad/s）
-max_flat_ang_vel_yaw_curriculum = 0.785
+max_flat_ang_vel_yaw_curriculum = 0.0
 
 [commands.ranges]
 # Linear velocity X range (non-flat, m/s)
@@ -103,15 +103,15 @@ lin_vel_x = [-0.4, 0.4]
 
 # Linear velocity Y range (non-flat, m/s)
 # 非平面地形上，y轴方向的线速度范围，单位为米/秒（m/s）
-lin_vel_y = [-0.2, 0.2]
+lin_vel_y = [-0.0, 0.0]
 
 # Angular velocity yaw range (non-flat, rad/s)
 # 非平面地形上，绕z轴的角速度范围，单位为弧度/秒（rad/s）
-ang_vel_yaw = [-0.2, 0.2]
+ang_vel_yaw = [-0.0, 0.0]
 
 # Heading range (non-flat, rad)
 # 非平面地形上，目标朝向的范围，单位为弧度（rad）
-heading = [-0.785, 0.785]
+heading = [-0.0, 0.0]
 
 # Flat terrain linear X velocity range (m/s)
 # 平面地形上，x轴方向（前进/后退）的线速度范围，单位为米/秒（m/s）
@@ -119,15 +119,15 @@ flat_lin_vel_x = [-0.4, 0.4]
 
 # Flat terrain linear Y velocity range (m/s)
 # 平面地形上，y轴方向（左右移动）的线速度范围，单位为米/秒
-flat_lin_vel_y = [-0.2, 0.2]
+flat_lin_vel_y = [-0.0, 0.0]
 
 # Flat terrain angular velocity range (rad/s)
 # 平面地形上，绕 z 轴的角速度范围（即偏航角速度），单位为弧度/秒（rad/s）
-flat_ang_vel_yaw = [-0.2, 0.2]
+flat_ang_vel_yaw = [-0.0, 0.0]
 
 # Flat terrain heading range (rad)
 # 平面地形上，目标朝向的范围，单位为弧度（rad）
-flat_heading = [-0.785, 0.785]
+flat_heading = [-0.0, 0.0]
 
 [noise]
 # Enable observation noise
@@ -189,11 +189,11 @@ base_height_target = 0.32
 
 # Clearance height target (meters)
 # 机器人离地高度
-clearance_height_target = -0.12
+clearance_height_target = -0.07
 
 # Meaningful height target for swing foot (meters)
 # 摆动腿高度奖励的有意义目标值
-meaningful_height_target = [-0.22, -0.02]
+meaningful_height_target = [-0.22, 0.08]
 
 # Swing foot height tracking reward target
 # 摆动腿高度跟踪奖励目标
@@ -294,7 +294,11 @@ symmetric_contact = 0.1
 
 # Swing foot clearance reward
 # 摆动腿高度奖励
-swing_trajectory = 0.6
+swing_trajectory = 0.5
+
+# Score reward
+# 总分奖励
+score = 0.0
 
 # ----------- baseline 中未启用的奖励项 -----------
 

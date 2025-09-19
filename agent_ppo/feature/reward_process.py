@@ -20,20 +20,14 @@ feet_air_time = None
 peak_swing_height = None
 
 
-def _reward_tracking_lin_vel(self):
-    self.commands[:, 0].abs_()
-    lin_vel_error = torch.sum(
-        torch.square(self.commands[:, :2] - self.base_lin_vel[:, :2]), dim=1
-    )
-    return torch.exp(-lin_vel_error / self.cfg.rewards.tracking_sigma)
-    # # 当 |x速度| > |x指令| 时，只计算 y 方向误差；否则计算 x,y 的平方和误差
-    # mask = torch.abs(self.base_lin_vel[:, 0]) > torch.abs(self.commands[:, 0])
-    # lin_vel_error = torch.where(
-    #     mask,
-    #     torch.square(self.commands[:, 1] - self.base_lin_vel[:, 1]),
-    #     torch.sum(torch.square(self.commands[:, :2] - self.base_lin_vel[:, :2]), dim=1),
-    # )
-    # return torch.exp(-lin_vel_error / self.cfg.rewards.tracking_sigma)
+# def _reward_tracking_lin_vel(self):
+#     self.commands[:, 0].abs_()
+#     lin_vel_error = torch.where(
+#         (self.base_lin_vel[:, 0] > torch.sign(self.commands[:, 0])),
+#         torch.square(self.commands[:, 1] - self.base_lin_vel[:, 1]),
+#         torch.sum(torch.square(self.commands[:, :2] - self.base_lin_vel[:, :2]), dim=1),
+#     )
+#     return torch.exp(-lin_vel_error / self.cfg.rewards.tracking_sigma)
 
 
 def _reward_base_height(self):
@@ -71,12 +65,9 @@ def _reward_action_smoothness(self):
 
 def _reward_progress(self):
     # 希望速度与指令方向一致
-    reward = self.base_lin_vel[:, 0].clone()
-    # reward = self.base_lin_vel[:, 0] * torch.sign(self.commands[:, 0])
-    # 将 (-0.05, 0] 范围内的值设置为 0
-    mask = (reward < 0.0) & (reward > -0.05)
-    reward.masked_fill_(mask, 0.0)
-    return reward
+    reward = self.base_lin_vel[:, 0] * torch.sign(self.commands[:, 0])
+    return torch.clamp(reward, min=0.0)
+    # return torch.clamp(self.base_lin_vel[:, 0], min=0.0)
 
 
 def _reward_symmetric_contact(self):
@@ -101,8 +92,8 @@ def _reward_symmetric_contact(self):
     sync_diag1 = torch.where(contact_filt[:, 0] == contact_filt[:, 3], 1.0, 0.0)
     sync_diag2 = torch.where(contact_filt[:, 1] == contact_filt[:, 2], 1.0, 0.0)
     # 只在机器人运动时关心这个
-    is_moving = self.base_lin_vel[:, 0] > 0.05
-    # is_moving = self.base_lin_vel[:, 0] * torch.sign(self.commands[:, 0]) > 0.05
+    is_moving = self.base_lin_vel[:, 0] * torch.sign(self.commands[:, 0]) > 0.05
+    # is_moving = self.base_lin_vel[:, 0] > 0.05
     reward = is_moving * (sync_diag1 + sync_diag2)
 
     # 重置
@@ -178,8 +169,9 @@ def _reward_swing_trajectory(self):
         & (peak_swing_height < self.cfg.rewards.meaningful_height_target[1])
     )
     reward = torch.sum(valid_mask * reward_at_peak, dim=1)
-    reward *= self.base_lin_vel[:, 0] > 0.05
-    # reward *= self.base_lin_vel[:, 0] * torch.sign(self.commands[:, 0]) > 0.05
+    is_moving = self.base_lin_vel[:, 0] * torch.sign(self.commands[:, 0]) > 0.05
+    reward *= is_moving
+    # reward *= self.base_lin_vel[:, 0] > 0.05
 
     # 更新每条腿的腾空时间和峰值高度
     feet_air_time += self.dt
@@ -198,31 +190,31 @@ def _reward_swing_trajectory(self):
 
 def _reward_score(self):
     env_ids = self.reset_buf.nonzero(as_tuple=False).flatten()
-    if len(env_ids) > 0:
-        success = torch.zeros(
-            self.num_envs, dtype=torch.float, device=self.device, requires_grad=False
-        )
-        velocity = torch.zeros(
-            self.num_envs, dtype=torch.float, device=self.device, requires_grad=False
-        )
-        stability = torch.zeros(
-            self.num_envs, dtype=torch.float, device=self.device, requires_grad=False
-        )
+    out = torch.zeros(
+        self.num_envs, dtype=torch.float, device=self.device, requires_grad=False
+    )
+    if len(env_ids) == 0:
+        return out
 
-        distance = torch.norm(
-            self.root_states[env_ids, :2] - self.env_origins[env_ids, :2], dim=1
-        )
-        success[env_ids] = 1.0 * (distance > self.terrain.env_length / 2)
-        velocity[env_ids] = distance / (self.episode_length_buf[env_ids] * self.dt)
-        stability[env_ids] = (
-            self._reward_torques()[env_ids] / self.episode_length_buf[env_ids]
-        )
+    # 只对活跃 env 进行切片计算，减少无用开销
+    rs = self.root_states[env_ids, :2]
+    origins = self.env_origins[env_ids, :2]
+    dist = torch.norm(rs - origins, dim=1)
 
-        vel_term = (2.0 / (1.0 + torch.exp(-velocity)) - 1.0) * 0.3
-        stab_term = torch.exp(stability * 1000.0) * 0.2
-        return success * 0.5 + vel_term + stab_term
+    # 防止 episode_length 为 0
+    ep_len = torch.clamp(self.episode_length_buf[env_ids].to(dist.dtype), min=1.0)
 
-    return torch.zeros(self.num_envs, device=self.device)
+    success = (dist > (self.terrain.env_length / 2)).to(torch.float)
+
+    velocity = dist / (ep_len * self.dt)
+    vel_term = ((2.0 / (1.0 + torch.exp(-velocity))) - 1.0) * 0.3
+
+    # torques_env = self.torques[env_ids]
+    # stability = torch.clamp(torch.sum(torques_env, dim=1) / ep_len, max=0.0)
+    # stab_term = torch.exp(stability * 1000.0) * 0.2
+
+    out[env_ids] = success * 0.5 + vel_term
+    return out
 
 
 # ---------------辅助函数---------------------
