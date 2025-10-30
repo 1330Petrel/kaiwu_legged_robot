@@ -165,17 +165,11 @@ def workflow(envs, agents, logger=None, monitor=None, *args, **kwargs):
                 "rew_lin_vel_z",
             ]
 
-            # diy_keys = [
-            #     "rew_base_height",
-            #     "rew_powers",
-            #     "rew_action_smoothness",
-            #     "rew_foot_clearance",
-            # ]
             diy_keys = [
-                "rew_stumble",
                 "rew_base_height",
-                "rew_symmetric_contact",
-                "rew_swing_trajectory",
+                "rew_action_smoothness",
+                "rew_feet_regulation",
+                "rew_fail",
             ]
 
             if len(ep_infos) > 0:
@@ -221,12 +215,6 @@ def workflow(envs, agents, logger=None, monitor=None, *args, **kwargs):
                             if not isinstance(metric, torch.Tensor):
                                 metric = torch.tensor(metric, device=agent.device)
                             processed_metric = metric.float().mean()
-                        elif key == "rew_dof_pos_limits":
-                            if "rew_progress" in ep_info:
-                                metric = ep_info["rew_progress"]
-                                if not isinstance(metric, torch.Tensor):
-                                    metric = torch.tensor(metric, device=agent.device)
-                                processed_metric = metric.float().mean()
                         else:
                             processed_metric = torch.tensor(
                                 0.0, device=agent.device, dtype=torch.float32

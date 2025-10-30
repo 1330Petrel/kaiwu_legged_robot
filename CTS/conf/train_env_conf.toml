@@ -1,0 +1,350 @@
+[env]
+# Number of parallel environments (1-4096), distributed across terrain columns
+# 机器狗并行环境数量，取值范围1~4096，会根据地形相关配置被分配到地形中
+num_envs = 4096
+
+# Whether to return privileged observation data
+# 是否返回特权观测信息
+privileged_obs = true
+
+# Length of observation history
+# 观测历史长度
+history_length = 5
+
+[terrain]
+# Enable terrain curriculum learning (cyclic difficulty allocation)
+# 是否启用地形课程学习模式，true表示启用，启用后将通过"循环分配"来设置地形难度
+curriculum = true
+
+# Initial maximum terrain difficulty level (0-9)
+# 初始最大地形难度，取值范围0~9
+max_init_terrain_level = 0
+
+# Terrain type proportions [ripples, slope, stairs_up, stairs_down, obstacles, flat]
+# 环境地形类型及比例，类型数组，元素对应地形类型[波纹，斜坡，上楼梯，下楼梯，障碍物，平面]
+terrain_proportions = [0.2, 0.1, 0.2, 0.2, 0.2, 0.1]
+
+[domain_rand]
+# Master switch to enable simulated physical property randomization (boolean)
+# - True: Enables randomization of elasticity coefficients, joint positions, 
+#         friction coefficients, base commands, link commands, applied forces,
+#         control gains, stiffness, damping, motor torques, action delays, 
+#         observation delays, etc., based on configurations below.
+# - False: Disables all randomization; configurations will use disabled values.
+# 是否启用仿真物理性质的随机噪声总开关，布尔值，
+# true表示启用，启用则下列配置随机生成弹性系数、关节位置、摩擦系数、基座指令、连杆指令、推动力、控制增益、刚度、阻尼、电机出力、动作延迟、观测延迟等按照配置启用；
+# false表示禁用，则下列所有配置为禁用值
+enable_domain_rand = true
+
+# Enable randomized restitution coefficient by default. Initial range: [0.0, 1.0]. 
+# To disable randomization, set range to [0, 0]
+# 默认启用随机弹性系数，初始在0.0~1.0的范围内随机生成弹性系数值，选手可根据真实环境自行调整，如需禁用该随机系数将范围配置为[0, 0]即可
+restitution_range = [0.0, 1.0]
+
+# Enable randomized center-of-mass position by default. Initial offset range: [-0.05, 0.05] meters
+# To disable randomization, set range to [0, 0]
+# 默认启用随机质心位置，初始在-0.05~0.05（单位米）的范围内随机生成质心位置偏移，选手可根据真实环境自行调整，如需禁用该随机系数将范围配置为[0, 0]即可
+com_pos_range = [-0.05, 0.05]
+
+# Enable randomized friction coefficient by default. Initial range: [0.05, 2.75]
+# To disable randomization, set range to [0, 0]
+# 默认启用随机摩擦系数，初始在0.05~2.75的范围内随机生成摩擦系数，选手可根据真实环境自行调整，如需禁用该随机系数将范围配置为[0, 0]即可
+friction_range = [0.05, 2.75]
+
+# Enable randomized payload mass by default. Initial range: [0.0, 3.0] kg (uniform sampling)
+# To disable randomization, set range to [0, 0]
+# 是否启用随机负重，初始在0.0~3.0（kg）的范围内均匀采样生成负重，选手可根据真实环境自行调整，如需禁用该随机系数将范围配置为[0, 0]即可
+added_mass_range = [0.0, 3.0]
+
+# Enable randomized link mass by default. Initial additional mass range: [0.8, 1.2] kg (added to original mass)
+# To disable randomization, set range to [1, 1]
+# 默认启用随机连杆质量，初始所有连杆在原来基础上再加上均匀采样0.8~1.2(kg)的质量，选手可根据真实环境自行调整，如需禁用该随机系数将范围配置为[1, 1]即可
+link_mass_range = [0.8, 1.2]
+
+# Apply random pushes to robots
+# 是否启用随机给机器狗施加推动力，true表示启用，启用后则使用push_interval_s参数作为间隔时间
+push_robots = true
+
+# Pushing interval (seconds)
+# 推动机器狗的时间间隔（秒）
+push_interval_s = 15
+
+# Enable randomized stiffness multiplier (core PID parameter) by default. Initial range: [0.8, 1.2]
+# To disable randomization, set range to [1, 1]
+# 默认启用随机化刚度控制增益（PID控制核心参数），初始在0.8~1.2的范围内随机生成刚度控制增益，选手可根据真实环境自行调整，如需禁用该随机系数将范围配置为[1, 1]即可
+stiffness_multiplier_range = [0.8, 1.2]
+
+# Enable randomized damping multiplier (core PID parameter) by default. Initial range: [0.8, 1.2]
+# To disable randomization, set range to [1, 1]
+# 默认启用随机化阻尼控制增益（PID控制核心参数），初始在0.8~1.2的范围内随机生成阻尼控制增益，选手可根据真实环境自行调整，如需禁用该随机系数将范围配置为[1, 1]即可
+damping_multiplier_range = [0.8, 1.2]
+
+# Enable randomized motor strength (control parameter) by default. Initial range: [0.8, 1.2]
+# To disable randomization, set range to [1, 1]
+# 默认启用随机电机出力（控制参数），初始在0.8~1.2的范围内随机生成电机出力（控制参数），选手可根据真实环境自行调整，如需禁用该随机系数将范围配置为[1, 1]即可
+motor_strength_range = [0.8, 1.2]
+
+# Randomize action latency (0.00-0.02s)
+# 是否启用随机化动作延迟，true表示启用，启用后则在0.00~0.02的范围随机生成延迟
+randomize_action_latency = true
+
+# Randomized action execution interval (seconds)
+# - Default [0.02, 0.02]: Execute random action at EVERY simulation step
+# - Adjustable range: Set wider intervals (e.g., [0.1, 0.5]) for multi-step execution
+# - Implementation: Converts time to steps via `int(time_range / dt)`
+#   (dt=0.02 means 50Hz simulation frequency)
+# 随机动作执行间隔时间，默认值为0.02~0.02即每一步都会调用随机动作，可按需调整为多步调用随机动作，秒为单位
+resample_commands_range = [0.02, 0.02]
+
+[commands]
+# Enable command curriculum learning
+# 是否启用指令课程模式，启用的话命令的难度会增加
+curriculum = true
+
+# Max linear velocity X (non-flat terrain)(m/s)
+# 非平面地形上，最大线速度 x 方向，单位是米/秒（m/s），当curriculum = true时生效
+max_lin_vel_x_curriculum = 2.0
+
+# Max linear velocity Y (non-flat terrain)(m/s)
+# 非平面地形上，y方向的最大线速度，单位是米/秒（m/s），当curriculum = true时生效
+max_lin_vel_y_curriculum = 1.0
+
+# Max angular velocity yaw (non-flat terrain)（rad/s）
+# 非平面地形上，最大角速度偏航轴，单位是弧度/秒（rad/s），当curriculum = true时生效
+max_ang_vel_yaw_curriculum = 2.0
+
+# Max flat terrain linear X velocity (m/s)
+# 平面地形上，x方向的最大线速度命令，单位是米/秒（m/s）
+max_flat_lin_vel_x_curriculum = 2.0
+
+# Max flat terrain linear Y velocity (m/s)
+# 平面地形上，y方向的最大线速度命令，单位是米/秒（m/s）
+max_flat_lin_vel_y_curriculum = 1.0
+
+# Max flat terrain angular velocity (rad/s)
+# 平面地形上，最大偏航角速度命令，单位是弧度/秒（rad/s）
+max_flat_ang_vel_yaw_curriculum = 2.0
+
+[commands.ranges]
+# Linear velocity X range (non-flat, m/s)
+# 非平面地形上，x 轴方向的线速度范围，单位为米/秒（m/s）
+lin_vel_x = [-0.5, 0.5]
+
+# Linear velocity Y range (non-flat, m/s)
+# 非平面地形上，y轴方向的线速度范围，单位为米/秒（m/s）
+lin_vel_y = [-0.2, 0.2]
+
+# Angular velocity yaw range (non-flat, rad/s)
+# 非平面地形上，绕z轴的角速度范围，单位为弧度/秒（rad/s）
+ang_vel_yaw = [-0.2, 0.2]
+
+# Heading range (non-flat, rad)
+# 非平面地形上，目标朝向的范围，单位为弧度（rad）
+heading = [-3.14, 3.14]
+
+# Flat terrain linear X velocity range (m/s)
+# 平面地形上，x轴方向（前进/后退）的线速度范围，单位为米/秒（m/s）
+flat_lin_vel_x = [-0.5, 0.5]
+
+# Flat terrain linear Y velocity range (m/s)
+# 平面地形上，y轴方向（左右移动）的线速度范围，单位为米/秒
+flat_lin_vel_y = [-0.2, 0.2]
+
+# Flat terrain angular velocity range (rad/s)
+# 平面地形上，绕 z 轴的角速度范围（即偏航角速度），单位为弧度/秒（rad/s）
+flat_ang_vel_yaw = [-0.2, 0.2]
+
+# Flat terrain heading range (rad)
+# 平面地形上，目标朝向的范围，单位为弧度（rad）
+flat_heading = [-3.14, 3.14]
+
+[noise]
+# Enable observation noise
+# 是否为观测施加噪声，true表示启用，启用则使用后续噪声系数对应影响观测值
+add_noise = true
+
+# Global noise multiplier
+# 噪声的全局强度系数，可以整体放大或缩小所有噪声
+noise_level = 1.0
+
+# Joint position noise std (rad)
+# 关节位置观测的噪声标准差，单位弧度
+dof_pos = 0.03
+
+# Joint velocity noise std
+# 关节速度观测的噪声标准差
+dof_vel = 1.5
+
+# Linear velocity noise std
+# 线速度观测的噪声标准差
+lin_vel = 0
+
+# Angular velocity noise std
+# 角速度观测的噪声标准差
+ang_vel = 0.3
+
+# Gravity direction noise std
+# 重力方向观测的噪声标准差
+gravity = 0.05
+
+# Terrain height noise std
+# 地形高度观测的噪声标准差
+height_measurements = 0
+
+[rewards]
+# Velocity tracking precision (smaller value = higher precision)
+# 线速度/角速度跟踪奖励，值越小要求精度越高
+tracking_sigma = 0.25
+
+# Soft joint position limit (meters)
+# 关节位置软限制
+soft_dof_pos_limit = 0.9
+
+# Soft joint velocity limit (meters/second)
+# 关节速度软限制
+soft_dof_vel_limit = 1.0
+
+# Soft joint torque limit (Nm)
+# 关节扭矩软限制
+soft_torque_limit = 1.0
+
+# Maximum contact force (N)
+# 最大接触力
+max_contact_force = 100
+
+# Target base height (meters)
+# 机器人基座高度
+base_height_target = 0.32
+
+# Feet height target (meters)
+# 足端高度目标值
+feet_height_target = -0.12
+
+# Meaningful height target for swing foot (meters)
+# 摆动腿高度奖励的有意义目标值
+meaningful_height_target = [-0.22, 0.03]
+
+# Swing foot height tracking reward target
+# 摆动腿高度跟踪奖励目标
+feet_tracking_sigma = 0.025
+
+# Clip negative rewards to zero
+# 是否只允许正奖励，true则负奖励置0
+only_positive_rewards = true
+
+# Enable reward curriculum
+# 是否启用奖励课程学习模式，奖励将随着训练的进度调整
+reward_curriculum = false
+
+# Curriculum-affected reward terms
+# 课程学习作用的奖励项
+reward_curriculum_term = []
+
+# Curriculum schedule [start_step, end_step, start_val, end_val]
+# 课程学习的调度计划（从第0步走到1000步，奖励系数从1降到0）
+reward_curriculum_schedule = [0, 1000, 1, 0]
+
+[rewards.scales]
+a = 1.0
+
+# Linear velocity tracking
+# 线速度跟踪奖励
+tracking_lin_vel = 1.0
+
+# Angular velocity tracking
+# 角速度跟踪奖励
+tracking_ang_vel = 0.5
+
+# Z-axis velocity penalty
+# Z轴线速度惩罚
+lin_vel_z = -2.0
+
+# XY angular velocity penalty
+# XY轴角速度惩罚
+ang_vel_xy = -0.05
+
+# Joint acceleration penalty
+# 关节加速度惩罚
+dof_acc = -2.5e-7
+
+# Joint power penalty
+# 关节功率惩罚
+powers = -2e-5
+
+# Torque penalty
+# 关节扭矩惩罚
+torques = -1e-5
+
+# Base height penalty
+# 底座高度惩罚
+base_height = -10.0
+
+# Action frequency penalty
+# 动作频率惩罚
+action_rate = -0.01
+
+# Action smoothness reward
+# 动作不平滑惩罚
+action_smoothness = -0.01
+
+# Collision penalty
+# 碰撞惩罚
+collision = -1.0
+
+# Joint position limit penalty
+# 关节位置限制惩罚
+dof_pos_limits = -2.0
+
+# Standing penalty
+# 静止惩罚
+stand_still = -2.0
+
+# Foot regulation penalty
+# 足端调节惩罚
+feet_regulation = -0.0
+
+# Fall penalty
+# 失败惩罚
+fail = -10.0
+
+# Foot air time reward
+# 足端腾空时间奖励
+feet_air_time = 0.1
+
+# Joint velocity penalty
+# 关节速度惩罚
+dof_vel = -0.0
+
+# Orientation penalty
+# 姿态惩罚
+orientation = -0.0
+
+# Symmetric contact reward
+# 对称接触奖励
+symmetric_contact = 0.0
+
+# Swing foot clearance reward
+# 摆动腿高度奖励
+swing_trajectory = 0.0
+
+# Score reward
+# 总分奖励
+score = 0.0
+
+# ----------- baseline 中未启用的奖励项 -----------
+
+# Termination reward
+# 终止奖励
+termination = -0.0
+
+# Joint velocity limit penalty
+# 关节速度限制惩罚
+# dof_vel_limits = -0.0
+
+# Joint torque limit penalty
+# 关节扭矩限制惩罚
+# torque_limits = -0.0
+
+# Foot contact forces penalty
+# 足端接触力惩罚
+# feet_contact_forces = -0.0

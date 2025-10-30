@@ -23,7 +23,7 @@ class TeacherActorCritic(nn.Module):
         latent_dim=32,
         actor_hidden_dims=[512, 256, 128],
         critic_hidden_dims=[512, 256, 128],
-        encoder_hidden_dims=[256, 128, 64],
+        encoder_hidden_dims=[256, 128],
         activation="elu",
         init_noise_std=1.0,
         **kwargs
@@ -54,9 +54,12 @@ class TeacherActorCritic(nn.Module):
         # 2. 潜空间转移模型 (Transition Model)
         # 输入是当前潜向量z和当前动作a的拼接，输出是预测的下一个潜向量z'
         self.trans = nn.Sequential(
-            nn.Linear(latent_dim + num_actions, latent_dim * 2),
-            nn.ELU(),
-            nn.Linear(latent_dim * 2, latent_dim),
+            *mlp_factory(
+                activation=activation,
+                input_dims=latent_dim + num_actions,
+                out_dims=latent_dim,
+                hidden_dims=encoder_hidden_dims,
+            )
         )
 
         # 3. 策略网络构建
@@ -84,6 +87,25 @@ class TeacherActorCritic(nn.Module):
 
         # 动作分布的标准差，作为一个可学习的参数
         self.std = nn.Parameter(init_noise_std * torch.ones(num_actions))
+
+        # 初始化网络权重
+        self._initialize_weights()
+
+    def _initialize_weights(self):
+        self._init_network(self.mlp_encoder)
+        self._init_network(self.trans)
+        self._init_network(self.actor)
+        self._init_network(self.critic)
+
+    def _init_network(self, network):
+        for module in network.modules():
+            if isinstance(module, nn.Linear):
+                nn.init.orthogonal_(module.weight, gain=1.0)
+                if module.bias is not None:
+                    nn.init.zeros_(module.bias)
+            elif isinstance(module, nn.LayerNorm):
+                nn.init.ones_(module.weight)
+                nn.init.zeros_(module.bias)
 
     def reset(self, dones=None):
         pass
