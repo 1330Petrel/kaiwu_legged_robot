@@ -112,7 +112,7 @@ class RolloutStorage:
         proprioceptive_obs_shape: list,
         privileged_obs_shape: list,
         actions_shape: list,
-        history_obs_dim: int = 42,
+        history_obs_dim: int,
         device: str = "cpu",
     ) -> None:
         self.device = device
@@ -132,7 +132,7 @@ class RolloutStorage:
         self.proprio_history = torch.zeros(
             num_transitions_per_env,
             num_envs,
-            history_length * history_obs_dim,
+            history_length * history_obs_dim + 3,  # cmd
             device=self.device,
         )
 

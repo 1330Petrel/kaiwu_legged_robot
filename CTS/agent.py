@@ -66,12 +66,15 @@ class Agent(BaseAgent):
             )
 
         self.num_envs = usr_conf["env"]["num_envs"]
-        self.num_proprioceptive_obs = usr_conf["env"]["num_observations"] - 3 # no lin_vel
+        self.num_proprioceptive_obs = (
+            usr_conf["env"]["num_observations"] - 3
+        )  # no lin_vel
         self.num_privileged_obs = usr_conf["env"]["num_privileged_obs"]
         self.num_actions = usr_conf["env"]["num_actions"]
         self.history_length = (
             usr_conf["env"]["history_length"] + 1
         )  # include current obs
+        self.clip_actions = usr_conf["normalization"]["clip_actions_tuple"]
 
         # Create Model and convert the model to a channel-last memory format to achieve better performance.
         # 创建模型, 将模型转换为通道后内存格式，以获得更好的性能。
@@ -113,6 +116,7 @@ class Agent(BaseAgent):
             [self.num_proprioceptive_obs],
             [self.num_privileged_obs],
             [self.num_actions],
+            self.num_proprioceptive_obs - 3,
         )
 
         # Evaluation History Buffer
@@ -165,11 +169,14 @@ class Agent(BaseAgent):
         self.trajectory_history[:, :-1] = self.trajectory_history[:, 1:].clone()
         self.trajectory_history[:, -1] = obs_without_command
 
-        with torch.no_grad():
+        with torch.inference_mode():
             proprioceptive_obs[:, 6] = 1.0 * 3
-            actions = self.algorithm.model.act_inference(
-                proprioceptive_obs, self.trajectory_history.flatten(1)
+            proprio_history = torch.concat(
+                (self.trajectory_history.flatten(1), proprioceptive_obs[:, 6:9]), dim=1
             )
+            actions = self.algorithm.model.act_inference(
+                proprioceptive_obs, proprio_history
+            ).clamp(self.clip_actions[0], self.clip_actions[1])
 
         return [ActData(action=actions)]
 
@@ -208,7 +215,7 @@ class Agent(BaseAgent):
         self.logger.info(f"save model {model_file_path} successfully")
 
     @load_model_wrapper
-    def load_model(self, path: str = "", id: str"1") -> None:
+    def load_model(self, path: str = "", id: str = "1") -> None:
         """
         When loading the model, you can load multiple files, and it is important to ensure that
         each filename matches the one used during the save_model process.

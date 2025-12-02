@@ -39,7 +39,6 @@ class CTS_ActorCritic(nn.Module):
         latent_dim: int = 32,
         activation: str = "elu",
         init_noise_std: float = 1.0,
-        fixed_std: bool = False,
         **kwargs: dict,
     ) -> None:
         if kwargs:
@@ -67,7 +66,7 @@ class CTS_ActorCritic(nn.Module):
         self.proprioceptive_encoder = nn.Sequential(
             *mlp_factory(
                 activation_mod,
-                input_dims=(num_proprioceptive_obs - 3) * history_length,
+                input_dims=(num_proprioceptive_obs - 3) * history_length + 3,  # cmd
                 out_dims=latent_dim,
                 hidden_dims=encoder_hidden_dims,
             )
@@ -92,15 +91,13 @@ class CTS_ActorCritic(nn.Module):
                 input_dims=latent_dim + num_privileged_obs,
                 out_dims=1,
                 hidden_dims=critic_hidden_dims,
-                # layer_norm=True, # 在Critic中使用层归一化
+                # layer_norm=True,  # 在Critic中使用层归一化
             )
         )
 
         # Action noise initialization
         # 动作噪声初始化
-        self.fixed_std = fixed_std
-        std = init_noise_std * torch.ones(num_actions)
-        self.std = torch.tensor(std) if fixed_std else nn.Parameter(std)
+        self.std = nn.Parameter(init_noise_std * torch.ones(num_actions))
 
         # Action distribution
         # 动作分布
@@ -157,8 +154,7 @@ class CTS_ActorCritic(nn.Module):
 
     def update_distribution(self, actor_input: torch.Tensor) -> None:
         mean = self.actor(actor_input)
-        if not self.fixed_std:
-            std = self.std.expand_as(mean)
+        std = self.std.expand_as(mean)
         self.distribution = Normal(mean, std)
 
     def act(

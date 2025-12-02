@@ -52,13 +52,10 @@ def workflow(envs, agents, logger=None, monitor=None, *args, **kwargs) -> None:
 
     # Book keeping
     ep_infos = []
+    base_height = []
     reset_duration = []
-    rewbuffer = deque(maxlen=100)
-    lenbuffer = deque(maxlen=100)
+    rewbuffer = deque([0.0], maxlen=100)
     cur_reward_sum = torch.zeros(agent.num_envs, dtype=torch.float, device=agent.device)
-    cur_episode_length = torch.zeros(
-        agent.num_envs, dtype=torch.float, device=agent.device
-    )
 
     # Initialize Experience Replay Buffer and Store Trajectory Data
     # 初始化经验回放池，存储轨迹数据
@@ -69,6 +66,7 @@ def workflow(envs, agents, logger=None, monitor=None, *args, **kwargs) -> None:
         [agent.num_proprioceptive_obs],
         [agent.num_privileged_obs],
         [agent.num_actions],
+        agent.num_proprioceptive_obs - 3,
         device=agent.device,
     )
 
@@ -112,8 +110,30 @@ def workflow(envs, agents, logger=None, monitor=None, *args, **kwargs) -> None:
     last_proprio_obs = torch.clone(proprioceptive_obs)
     last_privileged_obs = torch.clone(privileged_obs)
 
+    # Logging and Monitoring
+    # 日志与监控
     last_report_monitor_time = 0
     episode = 0
+    reward_keys = [
+        "rew_tracking_ang_vel",
+        "rew_tracking_lin_vel",
+        "rew_torques",
+        "max_command_x",
+        "rew_feet_air_time",
+        "rew_action_rate",
+        "rew_ang_vel_xy",
+        "rew_collision",
+        "rew_dof_acc",
+        "rew_dof_pos_limits",
+        "rew_lin_vel_z",
+    ]
+    diy_keys = [
+        "rew_a",
+        # "rew_action_smoothness",
+        # "rew_stand_still",
+        "rew_symmetric_contact",
+        "rew_feet_regulation",
+    ]
 
     # Main Training Loop
     # 主训练循环
@@ -132,11 +152,10 @@ def workflow(envs, agents, logger=None, monitor=None, *args, **kwargs) -> None:
                 teacher_mask,
                 episode,
                 ep_infos,
+                base_height,
                 reset_duration,
                 cur_reward_sum,
-                cur_episode_length,
                 rewbuffer,
-                lenbuffer,
             )
         )
         episode += 1
@@ -149,37 +168,17 @@ def workflow(envs, agents, logger=None, monitor=None, *args, **kwargs) -> None:
         # 阶段3：监控指标处理
         now = time.time()
         if now - last_report_monitor_time >= 60:
-            monitor_data = {}
+            monitor_data = {
+                "diy_1": torch.mean(agent.algorithm.model.std).item(),
+                "reward": statistics.mean(rewbuffer),
+            }
 
             if len(reset_duration) > 0:
-                monitor_data["total_cost_time"] = statistics.mean(reset_duration)
+                monitor_data["total_cost_time"] = int(statistics.mean(reset_duration))
                 reset_duration.clear()
-
-            if len(rewbuffer) > 0:
-                monitor_data["reward"] = statistics.mean(rewbuffer)
-            monitor_data["diy_5"] = torch.mean(agent.algorithm.model.std).item()
-
-            reward_keys = [
-                "rew_tracking_ang_vel",
-                "rew_tracking_lin_vel",
-                "rew_torques",
-                "max_command_x",
-                "rew_feet_air_time",
-                "rew_action_rate",
-                "rew_ang_vel_xy",
-                "rew_collision",
-                "rew_dof_acc",
-                "rew_dof_pos_limits",
-                "rew_lin_vel_z",
-            ]
-
-            diy_keys = [
-                "rew_a",
-                "rew_base_height",
-                "rew_action_smoothness",
-                # "rew_feet_regulation",
-                # "rew_stand_still",
-            ]
+            if len(base_height) > 0:
+                monitor_data["diy_5"] = statistics.mean(base_height)
+                base_height.clear()
 
             if len(ep_infos) > 0:
                 terrain_data = {
@@ -193,7 +192,6 @@ def workflow(envs, agents, logger=None, monitor=None, *args, **kwargs) -> None:
                 generic_metrics = defaultdict(list)
                 diy_metrics = defaultdict(list)
 
-                max_distance = []
                 reset_distance = []
                 success_values_teachers = []
                 success_values_students = []
@@ -236,9 +234,6 @@ def workflow(envs, agents, logger=None, monitor=None, *args, **kwargs) -> None:
                     if "terrain_types" in ep_info:
                         terrain_data["types"].append(ep_info["terrain_types"])
 
-                    if "max_distance" in ep_info:
-                        max_distance.append(ep_info["max_distance"].float().item())
-
                     if "reset_distance" in ep_info:
                         reset_distance.append(
                             torch.mean(ep_info["reset_distance"].float()).item()
@@ -250,6 +245,12 @@ def workflow(envs, agents, logger=None, monitor=None, *args, **kwargs) -> None:
                             if not isinstance(metric, torch.Tensor):
                                 metric = torch.tensor(metric, device=agent.device)
                             processed_metric = metric.float().mean()
+                        elif key == "rew_feet_air_time":
+                            if "rew_dof_error_named" in ep_info:
+                                metric = ep_info["rew_dof_error_named"]
+                                if not isinstance(metric, torch.Tensor):
+                                    metric = torch.tensor(metric, device=agent.device)
+                                processed_metric = metric.float().mean()
                         else:
                             processed_metric = torch.tensor(
                                 0.0, device=agent.device, dtype=torch.float32
@@ -268,15 +269,14 @@ def workflow(envs, agents, logger=None, monitor=None, *args, **kwargs) -> None:
                             )
                         diy_metrics[diy_key].append(processed_metric)
 
-                if max_distance:
+                if reset_distance:
                     monitor_data["sample_production_and_consumption_ratio"] = (
-                        statistics.mean(max_distance)
+                        statistics.mean(reset_distance)
                     )
-                    monitor_data["episode_cnt"] = statistics.mean(reset_distance)
-                    monitor_data["actor_load_last_model_succ_cnt"] = (
+                    monitor_data["episode_cnt"] = int(
                         statistics.mean(success_values_teachers) * 500
                     )
-                    monitor_data["sample_receive_cnt"] = (
+                    monitor_data["sample_receive_cnt"] = int(
                         statistics.mean(success_values_students) * 500
                     )
                     monitor_data["terrain_curriculum"] = statistics.mean(
@@ -288,7 +288,6 @@ def workflow(envs, agents, logger=None, monitor=None, *args, **kwargs) -> None:
                 else:
                     monitor_data["sample_production_and_consumption_ratio"] = 0.0
                     monitor_data["episode_cnt"] = 0.0
-                    monitor_data["actor_load_last_model_succ_cnt"] = 0.0
                     monitor_data["sample_receive_cnt"] = 0.0
                     monitor_data["terrain_curriculum"] = 0.0
                     monitor_data["terrain_level"] = 0.0
@@ -322,12 +321,12 @@ def workflow(envs, agents, logger=None, monitor=None, *args, **kwargs) -> None:
 
                 for i, diy_key in enumerate(diy_keys):
                     if diy_metrics[diy_key]:
-                        monitor_data[f"diy_{i+1}"] = (
+                        monitor_data[f"diy_{i+2}"] = (
                             torch.stack(diy_metrics[diy_key]).mean().item()
                         )
                     else:
-                        monitor_data[f"diy_{i+1}"] = 0.0
-                    monitor_data["episode_reward"] += monitor_data[f"diy_{i+1}"]
+                        monitor_data[f"diy_{i+2}"] = 0.0
+                    monitor_data["episode_reward"] += monitor_data[f"diy_{i+2}"]
 
             monitor.put_data({os.getpid(): monitor_data})
             last_report_monitor_time = now
@@ -355,11 +354,10 @@ def run_episodes_(
     teacher_mask: torch.Tensor,
     episode: int,
     ep_infos: list,
+    base_height: list,
     reset_duration: list,
     cur_reward_sum: torch.Tensor,
-    cur_episode_length: torch.Tensor,
     rewbuffer: deque,
-    lenbuffer: deque,
 ) -> tuple:
 
     def update_transition(
@@ -405,7 +403,9 @@ def run_episodes_(
     with torch.inference_mode():
         for _ in range(agent.num_steps_per_env):
             # Generate proprioceptive history
-            proprio_history = trajectory_history.flatten(1).to(agent.device)
+            proprio_history = torch.concat(
+                (trajectory_history.flatten(1), current_proprio_obs[:, 6:9]), dim=1
+            )
 
             # Action generation
             # 动作生成
@@ -420,11 +420,11 @@ def run_episodes_(
             ) = agent.predict_local(
                 current_proprio_obs, privileged_obs, proprio_history
             )
-            command_actions = torch.clip(actions, -6.0, 6.0).to(agent.device)
+            actions.clamp_(agent.clip_actions[0], agent.clip_actions[1])
 
             # Environment interaction
             # 环境交互
-            data, extra_info = env.step(command=command_actions)
+            data, extra_info = env.step(command=actions.to(agent.device))
             if extra_info.result_code != 0:
                 error_message = f"step failed, result is {extra_info.result_message}"
                 logger.error(error_message)
@@ -438,7 +438,7 @@ def run_episodes_(
                 (infos, privileged_obs),
             ) = data
             if privileged_obs is None:
-                logger.warning(f"episode {episode} is None happened!")
+                logger.warning(f"episode {episode} is Not happened!")
                 break
 
             # Move to device
@@ -486,23 +486,23 @@ def run_episodes_(
             # Book keeping
             if "episode" in infos:
                 ep_infos.append(infos["episode"])
+            if "base_height" in infos:
+                base_height.append(infos["base_height"])
             if "reset_duration" in infos:
                 reset_duration.append(infos["reset_duration"])
             cur_reward_sum += rewards
-            # Update episode length
-            cur_episode_length += 1
             # Clear data for completed episodes
             new_ids = (dones > 0).nonzero(as_tuple=False)
             rewbuffer.extend(cur_reward_sum[new_ids][:, 0].cpu().numpy().tolist())
-            lenbuffer.extend(cur_episode_length[new_ids][:, 0].cpu().numpy().tolist())
             cur_reward_sum[new_ids] = 0
-            cur_episode_length[new_ids] = 0
 
         # Advantage function computation
         # 优势函数计算
         last_values = agent.algorithm.model.evaluate(
             privileged_obs,
-            trajectory_history.flatten(1).to(agent.device),
+            torch.concat(
+                (trajectory_history.flatten(1), current_proprio_obs[:, 6:9]), dim=1
+            ),
             teacher_mask,
         ).detach()
         storage.compute_returns(last_values, agent.algorithm.gamma, agent.algorithm.lam)

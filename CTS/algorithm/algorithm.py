@@ -56,12 +56,8 @@ class Algorithm:
             model.privileged_encoder.parameters(),
             model.actor.parameters(),
             model.critic.parameters(),
+            [model.std],
         )
-        if not model.fixed_std:
-            self.ppo_components = itertools.chain(
-                self.ppo_components,
-                [model.std],
-            )
         self.ppo_optimizer = optim.Adam(
             self.ppo_components,
             lr=learning_rate,
@@ -111,6 +107,7 @@ class Algorithm:
         proprioceptive_obs_shape: list,
         privileged_obs_shape: list,
         action_shape: list,
+        history_obs_dim: int,
     ) -> None:
         self.storage = RolloutStorage(
             num_envs,
@@ -119,6 +116,7 @@ class Algorithm:
             proprioceptive_obs_shape,
             privileged_obs_shape,
             action_shape,
+            history_obs_dim,
             device=self.device,
         )
 
@@ -351,7 +349,7 @@ class Algorithm:
             )
             self.ppo_optimizer.step()
 
-            if not self.model.fixed_std and self.min_std is not None:
+            if self.min_std is not None:
                 self.model.std.data = self.model.std.data.clamp(min=self.min_std)
 
             # 2. Update Reconstruction component
