@@ -15,7 +15,7 @@ privileged_obs = true
 episode_length_s = 20
 
 # Length of observation history
-history_length = 5
+history_length = 6
 
 [terrain]
 # Enable terrain curriculum learning
@@ -96,22 +96,22 @@ resampling_time = 10
 curriculum = true
 
 # Max linear velocity X (non-flat terrain)(m/s)
-max_lin_vel_x_curriculum = 1.5
+max_lin_vel_x_curriculum = 1.55
 
 # Max linear velocity Y (non-flat terrain)(m/s)
 max_lin_vel_y_curriculum = 1.0
 
 # Max angular velocity yaw (non-flat terrain)（rad/s）
-max_ang_vel_yaw_curriculum = 1.0
+max_ang_vel_yaw_curriculum = 2.0
 
 # Max flat terrain linear X velocity (m/s)
-max_flat_lin_vel_x_curriculum = 1.5
+max_flat_lin_vel_x_curriculum = 1.55
 
 # Max flat terrain linear Y velocity (m/s)
 max_flat_lin_vel_y_curriculum = 1.0
 
 # Max flat terrain angular velocity (rad/s)
-max_flat_ang_vel_yaw_curriculum = 1.0
+max_flat_ang_vel_yaw_curriculum = 2.0
 
 [commands.ranges]
 # Linear velocity X range (non-flat, m/s)
@@ -122,7 +122,7 @@ lin_vel_y = [-0.2, 0.2]
 
 # Angular velocity yaw range (non-flat, rad/s)
 # 非平面地形上，绕z轴的角速度范围，单位为弧度/秒（rad/s）
-ang_vel_yaw = [-0.2, 0.2]
+ang_vel_yaw = [-0.5, 0.5]
 
 # Heading range (non-flat, rad)
 heading = [-3.14, 3.14]
@@ -134,7 +134,7 @@ flat_lin_vel_x = [-1.0, 1.0]
 flat_lin_vel_y = [-0.2, 0.2]
 
 # Flat terrain angular velocity range (rad/s)
-flat_ang_vel_yaw = [-0.2, 0.2]
+flat_ang_vel_yaw = [-0.5, 0.5]
 
 # Flat terrain heading range (rad)
 flat_heading = [-3.14, 3.14]
@@ -179,7 +179,7 @@ height_measurements = 0.05
 tracking_sigma = 0.25
 
 # Target base height (meters)
-base_height_target = 0.33
+base_height_target = 0.32
 
 # Degrees of freedom for default joint position limit penalty
 dof_error_names = ["FL_hip_joint", "FR_hip_joint", "RL_hip_joint", "RR_hip_joint"]
@@ -247,7 +247,7 @@ feet_regulation = -0.02
 symmetric_contact = 0.05
 
 # Dof error penalty (for named dofs)
-dof_error_named = -0.0
+dof_error_named = -1.0
 
 # Foot air time reward
 feet_air_time = 0.0

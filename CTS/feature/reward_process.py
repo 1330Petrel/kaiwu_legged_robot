@@ -17,16 +17,19 @@ init = False
 num_height_points = 0
 height_points = None
 height = None
+slope_mask = None
+slope_yaw_cmd = None
 disturbance = None
 disturbance_interval = 0
 action_history_buf = None
 last_contacts_1 = None
 last_contacts_2 = None
-dof_error_named_indices = None
+left_indices = None
+right_indices = None
 
 
 def _reward_a(self) -> torch.Tensor:
-    global init, disturbance_interval
+    global init, disturbance_interval, slope_mask, slope_yaw_cmd
     if not init:
         init = True
 
@@ -67,6 +70,16 @@ def _reward_a(self) -> torch.Tensor:
 
         # 延迟范围
         self.latency_range = [0, 4]
+
+        # 斜坡转向指令
+        slope_mask = (self.terrain_types == 4) | (self.terrain_types == 5)
+        slope_yaw_cmd = torch.full(
+            (self.num_envs,),
+            4.0,
+            dtype=torch.float,
+            device=self.device,
+            requires_grad=False,
+        )
 
         # 扰动间隔
         global disturbance
@@ -123,13 +136,35 @@ def _reward_a(self) -> torch.Tensor:
         )
 
         # 参与默认关节默认位置惩罚的关节索引
-        global dof_error_named_indices
+        global left_indices, right_indices
         dof_error_named_indices = torch.tensor(
             [self.dof_names.index(name) for name in self.cfg.rewards.dof_error_names],
             dtype=torch.long,
             device=self.device,
             requires_grad=False,
         )
+        left_indices = dof_error_named_indices[[0, 2]]
+        right_indices = dof_error_named_indices[[1, 3]]
+
+    # 斜坡地形转向指令覆盖
+    zero_cmd = torch.norm(self.commands[:, :2], p=1, dim=1) < 0.1
+    override_mask = slope_mask & zero_cmd
+    if override_mask.any():
+        need_sample = override_mask & (slope_yaw_cmd > 2.0)
+        sample_ids = need_sample.nonzero(as_tuple=False).flatten()
+
+        if len(sample_ids) > 0:
+            slope_yaw_cmd[sample_ids] = torch_rand_float(
+                self.command_ranges["ang_vel_yaw"][0],
+                self.command_ranges["ang_vel_yaw"][1],
+                (len(sample_ids), 1),
+                device=self.device,
+            ).squeeze(1)
+            slope_yaw_cmd[sample_ids] *= torch.abs(slope_yaw_cmd[sample_ids]) > 0.2
+        self.commands[override_mask, 2] = slope_yaw_cmd[override_mask]
+
+    exit_mask = slope_mask & (~zero_cmd)
+    slope_yaw_cmd[exit_mask] = 4.0
 
     # 外部扰动
     if self.cfg.domain_rand.disturbance and (
@@ -146,28 +181,9 @@ def _reward_a(self) -> torch.Tensor:
     self.reset_buf |= torch.logical_or(
         torch.abs(self.rpy[:, 1]) > 1.0, torch.abs(self.rpy[:, 0]) > 0.8
     )
-    # 失败条件1
+    # 失败条件
     fail_buf = self.reset_buf.clone()
     self.reset_buf |= self.time_out_buf
-
-    # 失败条件2
-    # env_ids = self.time_out_buf.nonzero(as_tuple=False).flatten()
-    # if len(env_ids) > 0:
-    #     scale = self.max_episode_length_s * 0.5
-    #     dis_threshold = self.terrain.env_length / 2
-    #     distance = torch.norm(
-    #         self.root_states[env_ids, :2] - self.env_origins[env_ids, :2], dim=1
-    #     )
-    #     cmd_dis = torch.norm(self.commands[env_ids, :2], dim=1) * scale
-    #     time_out = (distance <= dis_threshold) & (distance < cmd_dis)
-    #     fail_buf[env_ids] |= time_out
-
-    # 记录重置时时长
-    env_ids = self.reset_buf.nonzero(as_tuple=False).flatten()
-    if len(env_ids) > 0:
-        self.extras["reset_duration"] = torch.mean(
-            self.episode_length_buf[env_ids].float()
-        ).item()
 
     # 扭矩和加速度
     self.randomized_com_pos[:, : self.num_dof] = (
@@ -180,8 +196,19 @@ def _reward_a(self) -> torch.Tensor:
     # 指令
     self.command_ranges["lin_vel_x"][0] = -1.0
 
+    # 重置
+    env_ids = self.reset_buf.nonzero(as_tuple=False).flatten()
+    if len(env_ids) > 0:
+        slope_reset_ids = env_ids[slope_mask[env_ids]]
+        if len(slope_reset_ids) > 0:
+            slope_yaw_cmd[slope_reset_ids] = 4.0
+            self.commands[slope_reset_ids, 2] = 0.0
+
+        self.extras["reset_duration"] = torch.mean(
+            self.episode_length_buf[env_ids].float()
+        ).item()
+
     return fail_buf.float()
-    # return torch.zeros(self.num_envs, dtype=torch.float, device=self.device)
 
 
 def _reward_powers(self) -> torch.Tensor:
@@ -271,17 +298,19 @@ def _reward_symmetric_contact(self) -> torch.Tensor:
 
 
 def _reward_dof_error_named(self) -> torch.Tensor:
-    global dof_error_named_indices
-    dof_error = torch.sum(
-        torch.square(
-            5 * torch.clamp_min(-self.dof_pos[:, dof_error_named_indices], 0.0)
-        ),
-        dim=1,
+    global left_indices, right_indices
+    # 左腿内收为负, 右腿内收为正
+    left_diff = torch.clamp(self.dof_pos[:, left_indices] + 0.05, min=-1.0, max=0.0)
+    right_diff = torch.clamp(self.dof_pos[:, right_indices] - 0.05, min=0.0, max=1.0)
+    dof_error = torch.sum(torch.square(left_diff), dim=1) + torch.sum(
+        torch.square(right_diff), dim=1
     )
-    # * torch.clamp(2.0 - self.commands[:, 0], min=0.0, max=1.0)
+    dof_error.clamp_max_(1.0)
     # 仅在机器人x方向运动时关心
-    is_moving = (self.base_lin_vel[:, 0] * torch.sign(self.commands[:, 0]) > 0.05) & (
-        self.base_lin_vel[:, 1] * torch.sign(self.commands[:, 1]) < 0.05
+    is_moving = (
+        (self.base_lin_vel[:, 0] * torch.sign(self.commands[:, 0]) > 0.05)
+        & (torch.abs(self.base_lin_vel[:, 1]) < 0.1)
+        & (torch.abs(self.base_ang_vel[:, 2]) < 0.1)
     )
     return is_moving * dof_error
 

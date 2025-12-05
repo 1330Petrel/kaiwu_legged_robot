@@ -98,13 +98,15 @@ class Controller:
 
         self.lin_vel_deadband = config["lin_vel_deadband"]
         self.ang_vel_deadband = config["ang_vel_deadband"]
-        cmd_x_range = config["cmd_x_range"]
+        cmd_forward_range = config["cmd_forward_range"]
+        cmd_backward_range = config["cmd_backward_range"]
         cmd_y_range = config["cmd_y_range"]
         cmd_yaw_range = config["cmd_yaw_range"]
-        self._cmd_x_min = cmd_x_range[0]
+        self._cmd_x_min = cmd_forward_range[0]
         self._cmd_y_min = cmd_y_range[0]
         self._cmd_yaw_min = cmd_yaw_range[0]
-        self._cmd_x_scale = (cmd_x_range[1] - cmd_x_range[0]) / (1 - self.lin_vel_deadband)
+        self._cmd_forward_scale = (cmd_forward_range[1] - cmd_forward_range[0]) / (1 - self.lin_vel_deadband)
+        self._cmd_backward_scale = (cmd_backward_range[1] - cmd_backward_range[0]) / (1 - self.lin_vel_deadband)
         self._cmd_y_scale = (cmd_y_range[1] - cmd_y_range[0]) / (1 - self.lin_vel_deadband)
         self._cmd_yaw_scale = (cmd_yaw_range[1] - cmd_yaw_range[0]) / (1 - self.ang_vel_deadband)
 
@@ -202,9 +204,9 @@ class Controller:
         # left-y for forward/backward
         ly = self.remote_controller.ly
         if ly > self.lin_vel_deadband:
-            self.cmd[0] = self._cmd_x_min + (ly - self.lin_vel_deadband) * self._cmd_x_scale
+            self.cmd[0] = self._cmd_x_min + (ly - self.lin_vel_deadband) * self._cmd_forward_scale
         elif ly < -self.lin_vel_deadband:
-            self.cmd[0] = -self._cmd_x_min + (ly + self.lin_vel_deadband) * self._cmd_x_scale
+            self.cmd[0] = -self._cmd_x_min + (ly + self.lin_vel_deadband) * self._cmd_backward_scale
         else:
             self.cmd[0] = 0.0
 
@@ -291,14 +293,15 @@ class Controller:
         self.obs[9:21] = self.qj_obs
         self.obs[21:33] = self.dqj_obs
         self.obs[33:45] = self.action
+        np.clip(self.obs, -100.0, 100.0, out=self.obs)
 
         # 复用预分配的 Tensor
-        self.obs_tensor[0] = torch.from_numpy(self.obs).clamp_(-100.0, 100.0)
+        self.obs_tensor[0] = torch.from_numpy(self.obs)
         # 构建不含 command 的观测用于历史
         self.obs_without_command[:6] = self.obs[:6]
         self.obs_without_command[6:] = self.obs[9:]
         # 滚动历史缓冲区
-        self.proprio_history[:-1] = self.proprio_history[1:]
+        self.proprio_history[:-1] = self.proprio_history[1:].copy()
         self.proprio_history[-1] = self.obs_without_command
         # 复用预分配的 history_tensor
         self.history_tensor[0] = torch.from_numpy(self.proprio_history.ravel())

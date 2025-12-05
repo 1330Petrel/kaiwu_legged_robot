@@ -36,7 +36,7 @@ class CTS_ActorCritic(nn.Module):
         encoder_hidden_dims: list = [512, 256],
         actor_hidden_dims: list = [512, 256, 128],
         critic_hidden_dims: list = [512, 256, 128],
-        latent_dim: int = 32,
+        latent_dim: int = 40,
         activation: str = "elu",
         init_noise_std: float = 1.0,
         **kwargs: dict,
