@@ -1,4 +1,4 @@
-from legged_gym import LEGGED_GYM_ROOT_DIR
+# from legged_gym import LEGGED_GYM_ROOT_DIR
 import numpy as np
 import time
 import yaml
@@ -14,6 +14,8 @@ from unitree_sdk2py.utils.crc import CRC
 from common.command_helper import create_zero_cmd, create_damping_cmd
 from common.rotation_helper import get_gravity_orientation
 from common.remote_controller import RemoteController, KeyMap
+
+LEGGED_GYM_ROOT_DIR = "/home/unitree/zdj/kaiwu_legged_robot"
 
 # 低层通讯所需常量，参照 Unitree 官方 SDK 定义
 HIGHLEVEL = 0xEE
