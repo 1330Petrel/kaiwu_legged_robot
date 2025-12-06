@@ -283,7 +283,7 @@ def _reward_symmetric_contact(self) -> torch.Tensor:
     # 计算对角腿的同步性
     sync_diag1 = torch.where(contact_filt[:, 0] == contact_filt[:, 3], 1.0, 0.0)
     sync_diag2 = torch.where(contact_filt[:, 1] == contact_filt[:, 2], 1.0, 0.0)
-    # 只在机器人x方向运动时关心
+    # 只在x方向运动时关心
     is_moving = (self.base_lin_vel[:, 0] * torch.sign(self.commands[:, 0]) > 0.05) | (
         self.base_lin_vel[:, 1] * torch.sign(self.commands[:, 1]) > 0.05
     )
@@ -306,7 +306,7 @@ def _reward_dof_error_named(self) -> torch.Tensor:
         torch.square(right_diff), dim=1
     )
     dof_error.clamp_max_(1.0)
-    # 仅在机器人x方向运动时关心
+    # 仅在x方向运动时关心
     is_moving = (
         (self.base_lin_vel[:, 0] * torch.sign(self.commands[:, 0]) > 0.05)
         & (torch.abs(self.base_lin_vel[:, 1]) < 0.1)
@@ -389,7 +389,7 @@ def _get_heights2(self) -> torch.Tensor:
     return torch.mean(base_height, dim=1)
 
 
-def _disturbance_robots(self):
+def _disturbance_robots(self) -> None:
     """Random add disturbance force to the robots"""
     global disturbance
     max_force = self.cfg.domain_rand.max_disturbance_force

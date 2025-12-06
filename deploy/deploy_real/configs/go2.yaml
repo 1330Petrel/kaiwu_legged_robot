@@ -7,7 +7,7 @@ imu_type: "torso" # "torso" or "pelvis"
 lowcmd_topic: "rt/lowcmd"
 lowstate_topic: "rt/lowstate"
 
-policy_path: "{LEGGED_GYM_ROOT_DIR}/deploy/pre_train/go2/V2-6-7_52500.pt"
+policy_path: "{LEGGED_GYM_ROOT_DIR}/deploy/pre_train/go2/V2-3-1-2_80500.pt"
 
 joint2motor_idx: [3,4,5,0,1,2,9,10,11,6,7,8]
 
@@ -48,4 +48,4 @@ torque_limits: [25, 40, 40,
 
 num_actions: 12
 num_obs: 45
-history_length: 6
+history_length: 5

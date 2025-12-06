@@ -1,4 +1,4 @@
-# from legged_gym import LEGGED_GYM_ROOT_DIR
+from legged_gym import LEGGED_GYM_ROOT_DIR
 import numpy as np
 import time
 import yaml
@@ -14,8 +14,6 @@ from unitree_sdk2py.utils.crc import CRC
 from common.command_helper import create_zero_cmd, create_damping_cmd
 from common.rotation_helper import get_gravity_orientation
 from common.remote_controller import RemoteController, KeyMap
-
-LEGGED_GYM_ROOT_DIR = "/home/unitree/zdj/kaiwu_legged_robot"
 
 # 低层通讯所需常量，参照 Unitree 官方 SDK 定义
 HIGHLEVEL = 0xEE
@@ -307,7 +305,7 @@ class Controller:
         self.proprio_history[-1] = self.obs_without_command
         # 复用预分配的 history_tensor
         self.history_tensor[0] = torch.from_numpy(self.proprio_history.ravel())
-        
+
         # 策略推理
         action_tensor = self.policy(self.obs_tensor, self.history_tensor)
         np.copyto(self.action, action_tensor[0].numpy())
