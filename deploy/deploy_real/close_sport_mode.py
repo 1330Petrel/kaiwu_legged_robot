@@ -1,6 +1,6 @@
-from unitree_sdk2py.core.channel import ChannelSubscriber, ChannelFactoryInitialize
+from unitree_sdk2py.core.channel import ChannelFactoryInitialize
 from unitree_sdk2py.go2.robot_state.robot_state_client import RobotStateClient
-from pprint import pprint
+# from pprint import pprint
 
 def main(args=None):
     if args.eth is not None:

@@ -1,5 +1,4 @@
-# from legged_gym import LEGGED_GYM_ROOT_DIR
-LEGGED_GYM_ROOT_DIR = "/home/unitree/zdj/kaiwu_legged_robot"
+from legged_gym import LEGGED_GYM_ROOT_DIR
 import numpy as np
 import time
 import yaml
