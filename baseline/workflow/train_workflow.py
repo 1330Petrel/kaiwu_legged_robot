@@ -12,14 +12,14 @@ from tools.base_env_process import IsaacProcessManager
 from kaiwu_agent.utils.common_func import attached
 import os
 import time
-from agent_ppo.conf.conf import Config
-from agent_ppo.feature.definition import RolloutStorage
+from Baseline.conf.conf import Config
+from Baseline.feature.definition import RolloutStorage
 from tools.train_env_conf_validate import read_usr_conf
 from tools.utils import calculate_terrain_stats
 import torch
 import statistics
 from collections import deque, defaultdict
-from agent_ppo.agent import Agent
+from Baseline.agent import Agent
 
 
 @attached

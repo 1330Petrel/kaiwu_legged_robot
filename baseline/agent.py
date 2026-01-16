@@ -19,11 +19,11 @@ from kaiwu_agent.agent.base_agent import (
     load_model_wrapper,
     BaseAgent,
 )
-from agent_ppo.model.model import TeacherActorCritic
+from Baseline.model.model import TeacherActorCritic
 from kaiwu_agent.utils.common_func import attached
-from agent_ppo.feature.definition import *
-from agent_ppo.conf.conf import Config
-from agent_ppo.algorithm.algorithm import Algorithm
+from Baseline.feature.definition import *
+from Baseline.conf.conf import Config
+from Baseline.algorithm.algorithm import Algorithm
 from tools.train_env_conf_validate import read_usr_conf, check_usr_conf
 
 

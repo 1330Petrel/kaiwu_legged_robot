@@ -12,14 +12,14 @@ from tools.base_env_process import IsaacProcessManager
 from kaiwu_agent.utils.common_func import attached
 import os
 import time
-from agent_diy.conf.conf import Config
-from agent_diy.feature.definition import RolloutStorage
+from SLR.conf.conf import Config
+from SLR.feature.efinition import RolloutStorage
 from tools.train_env_conf_validate import read_usr_conf
 from tools.utils import calculate_terrain_stats
 import torch
 import statistics
 from collections import deque, defaultdict
-from agent_diy.agent import Agent
+from SLR.agent import Agent
 
 
 @attached

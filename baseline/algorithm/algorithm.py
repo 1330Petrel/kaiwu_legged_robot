@@ -12,8 +12,8 @@ import torch
 import torch.nn as nn
 import os
 import time
-from agent_ppo.conf.conf import Config
-from agent_ppo.feature.definition import RolloutStorage
+from Baseline.conf.conf import Config
+from Baseline.feature.definition import RolloutStorage
 
 
 class Algorithm:

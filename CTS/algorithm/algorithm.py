@@ -16,9 +16,9 @@ import os
 import time
 import itertools
 
-from agent_ppo.conf.conf import Config
-from agent_ppo.feature.definition import RolloutStorage
-from agent_ppo.model.model import CTS_ActorCritic
+from CTS.conf.conf import Config
+from CTS.feature.definition import RolloutStorage
+from CTS.model.model import CTS_ActorCritic
 
 
 class Algorithm:

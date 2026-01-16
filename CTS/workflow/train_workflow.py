@@ -19,9 +19,9 @@ import time
 import statistics
 from collections import deque, defaultdict
 
-from agent_ppo.conf.conf import Config
-from agent_ppo.feature.definition import RolloutStorage
-from agent_ppo.agent import Agent
+from CTS.conf.conf import Config
+from CTS.feature.definition import RolloutStorage
+from CTS.agent import Agent
 
 
 @attached

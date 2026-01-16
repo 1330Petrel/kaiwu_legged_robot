@@ -19,11 +19,11 @@ from kaiwu_agent.agent.base_agent import (
     load_model_wrapper,
     BaseAgent,
 )
-from agent_diy.model.model import TeacherActorCritic
+from SLR.model.model import TeacherActorCritic
 from kaiwu_agent.utils.common_func import attached
-from agent_diy.feature.definition import *
-from agent_diy.conf.conf import Config
-from agent_diy.algorithm.algorithm import Algorithm
+from SLR.feature.definition import *
+from SLR.conf.conf import Config
+from SLR.algorithm.algorithm import Algorithm
 from tools.train_env_conf_validate import read_usr_conf, check_usr_conf
 
 

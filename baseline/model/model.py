@@ -15,7 +15,7 @@ from torch import nn
 import torch.nn.functional as F
 from torch.distributions import Normal
 from torch.nn.modules import rnn
-from agent_ppo.conf.conf import Config
+from Baseline.conf.conf import Config
 
 
 class TeacherActorCritic(nn.Module):

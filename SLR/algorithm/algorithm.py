@@ -13,9 +13,9 @@ import torch.nn as nn
 import numpy as np
 import os
 import time
-from agent_diy.conf.conf import Config
-from agent_diy.feature.definition import RolloutStorage
-from agent_diy.model.model import TeacherActorCritic
+from SLR.conf.conf import Config
+from SLR.feature.definition import RolloutStorage
+from SLR.model.model import TeacherActorCritic
 
 
 class Algorithm:
